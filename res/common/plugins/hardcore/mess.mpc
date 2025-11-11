@@ -1,0 +1,26 @@
+(func() {
+    let judger = Wordle.createJudger('mess')
+    Wordle.judgerConfig(judger, 'determined', false)
+    Wordle.judgerResult(judger, 0, Wordle.RED | Wordle.GREEN | Wordle.BLUE, Wordle.MARK, [])
+    Wordle.judgerResult(judger, 1, Wordle.RED | Wordle.GREEN | Wordle.LUMINA, Wordle.MARK, [])
+    Wordle.judgerResult(judger, 2, Wordle.GREEN | Wordle.LUMINA, Wordle.SPOILER, [])
+    Wordle.judgerSet(judger, func(guess, answer) {
+        let skips = [false] * 5, count = [0] * 26, result = [0] * 5
+        for i(0...4) {
+            if (answer[i] == guess[i]) {
+                skips[i] = true
+                result[i] = 2
+            }
+            else count[digit(answer[i]) - 97]++
+        }
+        for i(0...4) if (!skips[i] && count[digit(guess[i]) - 97]) {
+            count[digit(guess[i]) - 97]--
+            result[i] = 1
+        }
+        let messPosition = randomInt(0, 4)
+        let messResults = [0, 1, 2].filter($(x) => x != result[messPosition])
+        result[messPosition] = messResults[randomInt(0, 1)]
+        return result
+    })
+    Wordle.registerJudger(judger)
+})()
