@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 2,
+  "id": "org.wordle.lua",
+  "name": "Lua position-only rules",
+  "version": "1.0.0",
+  "runtime": [{"id": "lua", "backend": "lua", "entry": "code/main.lua", "exports": ["judge"],
+    "modules": {
+      "rules": "code/rules.lua"
+    }}],
+  "graders": {
+    "org.wordle.lua.positions": {
+      "name": "Lua position-only rules",
+      "runtime": "lua",
+      "exports": {"check": "judge"},
+      "deterministic": true,
+      "states": {
+        "0": {"color": "slategray", "mode": "mark", "overrides": [-1]},
+        "1": {"color": "gold", "mode": "mark", "overrides": [-1, 0]},
+        "2": {"color": "term:RGL,bi", "mode": "spoiler", "overrides": [-1, 0, 1]}
+      }
+    }
+  }
+}

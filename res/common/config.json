@@ -1,78 +1,86 @@
 {
-    "core": "aho-corasick",
-    "base": {
-        "answers": [
-            {"file": "answer.dict", "type": "nbt"}
-        ],
-        "accepts": [
-            {"file": "accept.dict", "type": "nbt"}
-        ],
-        "validation": true,
-        "limit": -1,
-        "virtualTerminal": true,
-        "mouseControlling": false,
-        "charmap": true,
-        "codepage": 65001,
-        "handleInterrupt": true,
-        "wal": 1,
-        "language": "zh_CN.UTF-8",
-        "calendar": "default"
+  "schemaVersion": 2,
+  "defaults": {
+    "dictionary": "core.english",
+    "grader": "core.wordle"
+  },
+  "game": {
+    "validation": true,
+    "maxGuesses": -1,
+    "showAlphabet": true,
+    "answerOnly": true
+  },
+  "terminal": {
+    "backend": "auto",
+    "mouse": true,
+    "handleInterrupts": true,
+    "cursesTerm": "",
+    "cursesAnsi16": "auto",
+    "cursesReservedColors": 256
+  },
+  "locale": {
+    "language": "zh-CN",
+    "calendar": "default",
+    "timeZone": "local"
+  },
+  "storage": {
+    "wal": "checkpoint"
+  },
+  "dictionary": {
+    "validation": false,
+    "cleanupOnExit": true,
+    "showIds": true,
+    "showImpossible": false,
+    "search": {
+      "enabled": true,
+      "default": "google",
+      "engines": {
+        "google": "https://www.google.com/search?q=%s",
+        "bing": "https://www.bing.com/search?q=%s",
+        "baidu": "https://www.baidu.com/s?wd=%s",
+        "duckduckgo": "https://duckduckgo.com/?q=%s",
+        "wiktionary": "https://en.wiktionary.org/wiki/Special:Search?search=%s"
+      }
     },
-    "dictionary": {
-        "validation": false,
-        "cleanup": true,
-        "highlights": [
-            {"category": "answer", "color": "RGL"},
-            {"category": "*", "color": "RGBL"}
-        ],
-        "pageSize": 19,
-        "showId": true,
-        "showImpossible": false,
-        "impossibleColor": "L",
-        "searchEngines": [
-            {"id": "google", "url": "https://www.google.com/search?q=%s"},
-            {"id": "bing", "url": "https://www.bing.com/search?q=%s"},
-            {"id": "duckduckgo", "url": "https://duckduckgo.com/?q=%s"},
-            {"id": "wikitionary", "url": "https://en.wiktionary.org/wiki/Special:Search?search=%s"},
-            {"id": "yandex", "url": "https://yandex.com/search/?text=%s"},
-            {"id": "baidu", "url": "https://www.baidu.com/s?wd=%s"},
-            {"id": "dictionary", "url": "https://www.dictionary.com/browse/%s"},
-            {"id": "cambridge", "url": "https://dictionary.cambridge.org/spellcheck/english/?q=%s"},
-            {"id": "collins", "url": "https://www.collinsdictionary.com/dictionary/english/%s"},
-            {"id": "longman", "url": "https://www.ldoceonline.com/dictionary/%s"},
-            {"id": "urban", "url": "https://www.urbandictionary.com/define.php?term=%s"},
-            {"id": "startpage", "url": "https://www.startpage.com/do/search?q=%s"},
-            {"id": "ecosia", "url": "https://www.ecosia.org/search?q=%s"},
-            {"id": "qwant", "url": "https://www.qwant.com/?q=%s"},
-            {"id": "brave", "url": "https://search.brave.com/search?q=%s"},
-            {"id": "sogou", "url": "https://www.sogou.com/web?query=%s"},
-            {"id": "so360", "url": "https://www.so.com/s?q=%s"},
-            {"id": "shenma", "url": "https://yz.m.sm.cn/s?q=%s"},
-            {"id": "toutiao", "url": "https://so.toutiao.com/search?keyword=%s"},
-            {"id": "perplexity", "url": "https://www.perplexity.ai/search?q=%s"},
-            {"id": "phind", "url": "https://www.phind.com/search?q=%s"},
-            {"id": "you", "url": "https://you.com/search?q=%s"},
-            {"id": "chatgpt", "url": "https://chatgpt.com/?q=%s"},
-            {"id": "copilot", "url": "https://copilot.microsoft.com/?q=%s"},
-            {"id": "zhihu-ai", "url": "https://www.zhihu.com/search?q=%s&source=ai&type=zhida"},
-            {"id": "claude", "url": "https://claude.ai/new?q=%s"},
-            {"id": "grok", "url": "https://x.com/i/grok?text=%s"}
-        ],
-        "search": true,
-        "searchEngine": "google"
-    },
-    "plugins": {
-        "enabled": true,
-        "scripting": true,
-        "dynamicLibraries": false,
-        "system": false,
-        "prependLocation": true,
-        "isolated": false,
-        "enableFeatures": ["dictionaries", "words", "searchEngines", "judgers", "gamemodes", "problemsets", "validators", "languages"],
-        "manifest": "manifest.json",
-        "loadeds": [
-            {"directory": "hardcore", "id": "com.minftis.hardcore"},
-            {"directory": "nsdict", "id": "com.minftis.nsdict"}
-        ]
-    }
+    "answerOnly": false
+  },
+  "colors": {
+    "foreground": "term:RGBL",
+    "background": "term:",
+    "muted": "term:L",
+    "selected": "term:RGL",
+    "hover": "term:RGL",
+    "inputActive": "term:GL",
+    "inputPlaceholder": "term:L",
+    "error": "term:RL",
+    "dictionaryImpossible": "term:L",
+    "accept": "term:RGB",
+    "answer": "term:GL,b"
+  },
+  "plugins": {
+    "enabled": true,
+    "load": [
+      {
+        "id": "core.ext.unixdict",
+        "path": "unixdict"
+      },
+      {
+        "id": "core.ext.lingua-latina",
+        "path": "lingua-latina"
+      },
+      {
+        "id": "core.ext.hardcore",
+        "path": "hardcore"
+      },
+      {
+        "id": "core.ext.easier",
+        "path": "easier"
+      },
+      {
+        "id": "core.ext.leftfirst",
+        "path": "leftfirst"
+      }
+    ],
+    "runtimes": ["lua"]
+  }
 }

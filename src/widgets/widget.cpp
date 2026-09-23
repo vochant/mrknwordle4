@@ -3,19 +3,29 @@
 #include "logger.hpp"
 #include "options.hpp"
 
-bool Widget::isFocus() {
-    if (!options->mouseControlling) return false;
-	auto l = mouse_service->where();
-	return (ax <= l.first && l.first < ax + w) && (ay <= l.second && l.second < ay + h);	
+bool Widget::isFocus() const { return keyboardFocus; }
+
+bool Widget::isFocusHighlighted() const { return keyboardFocus && focusHighlight; }
+
+bool Widget::isHover() const {
+    if (!options->term.mouse) return false;
+    auto l = mouse_service->where();
+    return (ax <= l.first && l.first < ax + w) && (ay <= l.second && l.second < ay + h);
 }
 
-void Widget::onClick(int rx, int ry) {}
-void Widget::onInput(int ch) {}
+void Widget::showFocus(bool visible) { focusHighlight = visible; }
+
+bool Widget::focusable() const { return false; }
+
+void Widget::focus(bool active) { keyboardFocus = active; }
+
+void Widget::onClick(int, int) {}
+bool Widget::onInput(int) { return false; }
 void Widget::onWideClick() {}
 
-void Widget::setabs(int x, int y) {
-	ax = x + rx;
-	ay = y + ry;
+void Widget::setAbs(int x, int y) {
+    ax = x + rx;
+    ay = y + ry;
 }
 
-Widget::Widget(int rx, int ry, int w, int h) : rx(rx), ry(ry), w(w), h(h), ax(rx), ay(ry) {}
+Widget::Widget(int rx, int ry, int w, int h) : ax(rx), ay(ry), rx(rx), ry(ry), w(w), h(h) {}

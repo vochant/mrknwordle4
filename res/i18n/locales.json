@@ -1,0 +1,29 @@
+{
+  "base": "en-US",
+  "aliases": {
+    "tr": "tr-TR",
+    "th": "th-TH",
+    "it": "it-IT",
+    "vi": "vi-VN",
+    "de": "de-DE",
+    "pt": "pt-PT",
+    "ko": "ko-KR",
+    "fr": "fr-FR",
+    "en": "en-US",
+    "zh": "zh-CN",
+    "uk": "uk-UA",
+    "es": "es-ES",
+    "ja": "ja-JP",
+    "ru": "ru-RU",
+    "el": "el-GR",
+    "zh-Hans": "zh-CN",
+    "zh-Hant": "zh-TW",
+    "zh-HK": "zh-TW",
+    "zh-MO": "zh-TW"
+  },
+  "locales": [
+    "de-DE", "el-GR", "en-US", "es-ES", "fr-FR", "it-IT", "ja-JP",
+    "ko-KR", "la", "pt-PT", "ru-RU", "th-TH", "tr-TR", "uk-UA",
+    "qmf", "vi-VN", "zh-CN", "zh-TW"
+  ]
+}

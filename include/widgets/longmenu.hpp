@@ -9,16 +9,20 @@ class LongMenu : public Widget {
 private:
     std::function<std::vector<std::string>(int)> getPage;
     std::function<void(int)> callback;
-    int prevPage, prevItem, page, itemId, itemsPerPage, numPages, itemCount;
+    int prevPage, prevItem, prevHover = -1, page, itemId, itemsPerPage, numPages, itemCount;
+    bool prevPrevHover = false, prevNextHover = false;
 
 public:
     void render(PaintBrush* pb, bool redraw) override;
-    void onInput(int ch) override;
+    bool onInput(int ch) override;
     void onClick(int ix, int iy) override;
     int getItemId() const;
     void reload();
-    void resetptr();
-    void setcount(int count);
+    void resetPtr();
+    void setCount(int count);
 
-    LongMenu(int x, int y, int w, int h, int nItems, std::function<std::vector<std::string>(int)> getPage, std::function<void(int)> callback);
+    LongMenu(
+        int x, int y, int w, int h, int nItems, std::function<std::vector<std::string>(int)> getPage,
+        std::function<void(int)> callback
+    );
 };

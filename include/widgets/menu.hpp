@@ -9,7 +9,8 @@
 
 class Menu : public Widget {
 private:
-    int num_entries, prev_focus;
+    int num_entries = 0, prev_focus = -1;
+    bool changed = true;
     std::vector<std::pair<std::string, std::function<void()>>> entries;
     std::map<int, int> keymap;
 
@@ -17,7 +18,7 @@ private:
 
 public:
     void render(PaintBrush* pb, bool redraw) override;
-    void onInput(int ch) override;
+    bool onInput(int ch) override;
     void onClick(int ix, int iy) override;
     void set(int ix, std::string text);
 

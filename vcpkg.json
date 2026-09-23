@@ -1,0 +1,14 @@
+{
+  "name": "mrknwordle4",
+  "version-string": "0.1.0",
+  "dependencies": ["nlohmann-json", "sqlite3", "icu", "lua"],
+  "features": {
+    "curses": {
+      "description": "Wide-character curses terminal backend",
+      "dependencies": [
+        { "name": "pdcurses", "platform": "windows" },
+        { "name": "ncurses", "platform": "!windows" }
+      ]
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 2,
+  "id": "core",
+  "name": "Wordle Core",
+  "version": "1.0.0",
+  "author": "Mirekintoc",
+  "license": "MIT",
+  "description": "Mirekintoc Wordle Core",
+  "dictionaries": {
+    "core.english": {
+      "name": "English",
+      "equivalents": []
+    }
+  },
+  "words": [
+    {
+      "filter": "core.english",
+      "target": "accept",
+      "file": "accept.dict",
+      "type": "nbt"
+    },
+    {
+      "filter": "core.english",
+      "target": "answer",
+      "file": "answer.dict",
+      "type": "nbt"
+    }
+  ]
+}

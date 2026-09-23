@@ -1,117 +1,23 @@
 {
-    "id": "com.minftis.hardcore",
-    "name": "Hardcore Wordle",
-    "version": "1.0.0",
-    "license": "MIT",
-    "author": "Mirekintoc",
-    "description": "Mess up your results!",
-    "initScripts": [
-        "mess.mpc"
-    ],
-    "gamemodes": {
-        "hardcore": {
-            "name": "{gamemode.hardcore}",
-            "judger": "mess",
-            "validator": "acceptDict",
-            "problemset": "answerDict"
-        }
-    },
-    "languages": {
-        "zh_CN.UTF-8": {
-            "type": "inline",
-            "content": [
-                {"id": "{gamemode.hardcore}", "content": "硬核模式"}
-            ]
-        },
-        "zh_TW.UTF-8": {
-            "type": "inline",
-            "content": [
-                {"id": "{gamemode.hardcore}", "content": "硬核模式"}
-            ]
-        },
-        "en_US.UTF-8": {
-            "type": "inline",
-            "content": [
-                {"id": "{gamemode.hardcore}", "content": "Hardcore Mode"}
-            ]
-        },
-        "ja_JP.UTF-8": {
-            "type": "inline",
-            "content": [
-                {"id": "{gamemode.hardcore}", "content": "ハードコアモード"}
-            ]
-        },
-        "ko_KR.UTF-8": {
-            "type": "inline",
-            "content": [
-                {"id": "{gamemode.hardcore}", "content": "하드코어 모드"}
-            ]
-        },
-        "fr_FR.UTF-8": {
-            "type": "inline",
-            "content": [
-                {"id": "{gamemode.hardcore}", "content": "Mode Hardcore"}
-            ]
-        },
-        "de_DE.UTF-8": {
-            "type": "inline",
-            "content": [
-                {"id": "{gamemode.hardcore}", "content": "Hardcore-Modus"}
-            ]
-        },
-        "it_IT.UTF-8": {
-            "type": "inline",
-            "content": [
-                {"id": "{gamemode.hardcore}", "content": "Modalità Hardcore"}
-            ]
-        },
-        "es_ES.UTF-8": {
-            "type": "inline",
-            "content": [
-                {"id": "{gamemode.hardcore}", "content": "Modo Hardcore"}
-            ]
-        },
-        "ru_RU.UTF-8": {
-            "type": "inline",
-            "content": [
-                {"id": "{gamemode.hardcore}", "content": "Хардкорный режим"}
-            ]
-        },
-        "pt_PT.UTF-8": {
-            "type": "inline",
-            "content": [
-                {"id": "{gamemode.hardcore}", "content": "Modo Hardcore"}
-            ]
-        },
-        "el_GR.UTF-8": {
-            "type": "inline",
-            "content": [
-                {"id": "{gamemode.hardcore}", "content": "Σκληρός τρόπος"}
-            ]
-        },
-        "vi_VN.UTF-8": {
-            "type": "inline",
-            "content": [
-                {"id": "{gamemode.hardcore}", "content": "Chế độ Hardcore"}
-            ]
-        },
-        "uk_UA.UTF-8": {
-            "type": "inline",
-            "content": [
-                {"id": "{gamemode.hardcore}", "content": "Хардкорний режим"}
-            ]
-        },
-        "tr_TR.UTF-8": {
-            "type": "inline",
-            "content": [
-                {"id": "{gamemode.hardcore}", "content": "Hardcore Modu"}
-            ]
-        },
-        "th_TH.UTF-8": {
-            "type": "inline",
-            "content": [
-                {"id": "{gamemode.hardcore}", "content": "โหมด Hardcore"}
-            ]
-        }
+  "schemaVersion": 2,
+  "id": "core.ext.hardcore",
+  "name": "Hardcore Wordle",
+  "version": "1.0.0",
+  "author": "Mirekintoc",
+  "license": "MIT",
+  "description": "Changes one feedback tile for every guess.",
+  "runtime": [{"id": "lua", "backend": "lua", "entry": "hardcore.lua", "exports": ["check", "compatible", "start", "finish"]}],
+  "graders": {
+    "core.ext.hardcore.grader": {
+      "name": "Hardcore Wordle",
+      "runtime": "lua",
+      "exports": {"check": "check", "compatible": "compatible", "start": "start", "finish": "finish"},
+      "deterministic": false,
+      "states": {
+        "0": {"color": "term:RGBL", "mode": "spoiler", "overrides": []},
+        "1": {"color": "term:RGL", "mode": "mark", "overrides": []},
+        "2": {"color": "term:GL", "mode": "mark", "overrides": []}
+      }
     }
+  }
 }

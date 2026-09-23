@@ -10,11 +10,6 @@ using namespace nbt;
 
 int main(int argc, char** argv) {
     std::ios::sync_with_stdio(false);
-    auto basicValidation = [](const std::string& str) {
-        if (str.length() != 5) return false;
-        for (int i = 0; i < 5; i++) if (str[i] < 'a' || str[i] > 'z') return false;
-        return true;
-    };
     if (argc < 2) {
         std::cerr << "An output file must be specified.\n";
         return 1;
@@ -33,9 +28,7 @@ int main(int argc, char** argv) {
         }
         auto reader = createDictReader(argv[i + 1], argv[i]);
         auto part = reader->read();
-        for (const auto& word : part) if (basicValidation(word)) {
-            dict.insert(word);
-        }
+        dict.insert(part.begin(), part.end());
     }
     tag_list list(tag_type::String);
     for (const auto& word : dict) list.push_back(tag_string(word));

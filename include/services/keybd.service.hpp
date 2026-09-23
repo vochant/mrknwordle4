@@ -1,18 +1,12 @@
 #pragma once
 
 #include <functional>
-#include <vector>
-
 class KeyboardService {
-private:
-	std::vector<std::function<void(int)>> listeners;
-public:
-	bool isDown(int vk);
-	void listen(std::function<void(int)> l);
-	KeyboardService();
-	~KeyboardService();
-};
+    std::function<bool(int)> handler;
 
-extern bool no_next;
+public:
+    void dispatch(int key);
+    void setHandler(std::function<bool(int)> handler);
+};
 
 extern KeyboardService* keybd_service;

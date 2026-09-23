@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 2,
+  "id": "core.ext.unixdict",
+  "name": "Unix / C vocabulary",
+  "version": "1.0.0",
+  "author": "Mirekintoc",
+  "license": "MIT",
+  "description": "Add some five-letter Unix/C words.",
+  "dictionaries": {
+    "core.ext.unixdict.unix": {
+      "name": "Unix",
+      "equivalents": []
+    }
+  },
+  "words": [
+    {
+      "filter": "core.ext.unixdict.unix",
+      "target": "accept",
+      "file": "unix.txt",
+      "type": "plain"
+    },
+    {
+      "filter": "core.ext.unixdict.unix",
+      "target": "answer",
+      "file": "unix_answers.txt",
+      "type": "plain"
+    }
+  ]
+}

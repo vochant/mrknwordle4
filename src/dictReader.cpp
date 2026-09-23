@@ -1,112 +1,115 @@
 #include "dictReader.hpp"
-
-#include <fstream>
+#include <algorithm>
 #include <cctype>
+#include <fstream>
+#include <sstream>
+#include <stdexcept>
 #include <nlohmann/json.hpp>
-#include <exception>
 #include "io/stream_reader.h"
 #include "nbt_tags.h"
 
-using namespace nlohmann;
-using namespace nbt;
+namespace {
+    bool valid_word(std::string_view word) {
+        return word.size() == 5 && std::all_of(word.begin(), word.end(), [](unsigned char ch) {
+            return ch >= 'a' && ch <= 'z';
+        });
+    }
 
-bool DictReader::validate(std::string str) {
-    if (str.length() != 5) return false;
-    for (int i = 0; i < 5; i++) if (str[i] < 'a' || str[i] > 'z') return false;
-    return true;
+    void add_word(std::vector<std::string>& words, const std::string& word) {
+        if (!valid_word(word)) return;
+        words.push_back(word);
+    }
+
+    std::vector<std::string> read_plain(std::istream& input) {
+        std::vector<std::string> words;
+        std::string line;
+        while (std::getline(input, line)) {
+            if (!line.empty() && line.back() == '\r') line.pop_back();
+            if (!line.empty() && line.front() != '#') add_word(words, line);
+        }
+        if (input.bad()) throw std::runtime_error("Cannot read dictionary");
+        return words;
+    }
+
+    std::vector<std::string> read_json(std::istream& input) {
+        const auto document = nlohmann::json::parse(input);
+        const auto& values = document.at("words");
+        if (!values.is_array()) throw std::invalid_argument("Dictionary words must be an array");
+        std::vector<std::string> words;
+        for (const auto& value : values) add_word(words, value.get<std::string>());
+        return words;
+    }
+
+    std::vector<std::string> read_nbt(std::istream& input) {
+        nbt::io::stream_reader reader(input);
+        if (reader.read_type() != nbt::tag_type::Compound) throw std::invalid_argument("Expected NBT compound");
+        reader.read_string();
+        nbt::tag_compound root;
+        root.read_payload(reader);
+        if (!root.has_key("words") || root["words"].get_type() != nbt::tag_type::List) {
+            throw std::invalid_argument("Expected NBT words list");
+        }
+        const auto& values = root["words"].as<nbt::tag_list>();
+        if (values.el_type() != nbt::tag_type::String) throw std::invalid_argument("Expected NBT string list");
+        std::vector<std::string> words;
+        for (const auto& value : values) add_word(words, value.as<nbt::tag_string>().get());
+        return words;
+    }
+
+    class PlainDictReader : public DictReader {
+        std::filesystem::path file;
+
+    public:
+        std::vector<std::string> read() override {
+            std::ifstream input(file);
+            if (!input) throw std::runtime_error("Cannot open dictionary: " + file.string());
+            return read_plain(input);
+        }
+
+        explicit PlainDictReader(std::filesystem::path path) : file(std::move(path)) {}
+    };
+
+    class JSONDictReader : public DictReader {
+        std::filesystem::path file;
+
+    public:
+        std::vector<std::string> read() override {
+            std::ifstream input(file);
+            if (!input) throw std::runtime_error("Cannot open dictionary: " + file.string());
+            return read_json(input);
+        }
+
+        explicit JSONDictReader(std::filesystem::path path) : file(std::move(path)) {}
+    };
+
+    class NBTDictReader : public DictReader {
+        std::filesystem::path file;
+
+    public:
+        std::vector<std::string> read() override {
+            std::ifstream input(file, std::ios::binary);
+            if (!input) throw std::runtime_error("Cannot open dictionary: " + file.string());
+            return read_nbt(input);
+        }
+
+        explicit NBTDictReader(std::filesystem::path path) : file(std::move(path)) {}
+    };
+} // namespace
+
+std::unique_ptr<DictReader> createDictReader(const std::filesystem::path& path, std::string format) {
+    std::transform(format.begin(), format.end(), format.begin(), [](unsigned char ch) { return std::tolower(ch); });
+    if (format == "plain") return std::make_unique<PlainDictReader>(path);
+    if (format == "json") return std::make_unique<JSONDictReader>(path);
+    if (format == "nbt") return std::make_unique<NBTDictReader>(path);
+    throw std::invalid_argument("Unknown dictionary format: " + format);
 }
 
-class PlainDictReader : public DictReader {
-private:
-    std::filesystem::path file;
-
-public:
-    std::vector<std::string> read() override {
-        std::ifstream ifs(file);
-        if (!ifs) return {};
-        std::vector<std::string> res;
-        std::string word;
-        while (ifs >> word && word.length()) {
-            if (validate(word)) res.push_back(word);
-        }
-        return res;
-    }
-
-    PlainDictReader(const std::filesystem::path& path) : file(path) {}
-};
-
-class JSONDictReader : public DictReader {
-private:
-    std::filesystem::path file;
-
-public:
-    std::vector<std::string> read() override {
-        std::ifstream ifs(file);
-        if (!ifs) return {};
-        try {
-            std::vector<std::string> res;
-            json obj;
-            ifs >> obj;
-            if (!obj.is_object() || !obj.contains("words") || !obj["words"].is_array()) return {};
-            for (const auto& item : obj["words"]) {
-                if (item.is_string()) {
-                    auto word = item.get<std::string>();
-                    if (validate(word)) res.push_back(word);
-                }
-            }
-            return res;
-        }
-        catch (const std::exception& e) {
-            return {};
-        }
-    }
-
-    JSONDictReader(const std::filesystem::path& path) : file(path) {}
-};
-
-class NBTDictReader : public DictReader {
-private:
-    std::filesystem::path file;
-
-public:
-    std::vector<std::string> read() override {
-        std::ifstream ifs(file, std::ios::binary);
-        if (!ifs) return {};
-        try {
-            io::stream_reader reader(ifs);
-            if (reader.read_type() != tag_type::Compound) return {};
-            reader.read_string();
-            tag_compound root;
-            root.read_payload(reader);
-            if (!root.has_key("words") || root["words"].get_type() != tag_type::List) return {};
-            std::vector<std::string> res;
-            const tag_list& words = root["words"].as<tag_list>();
-            if (words.el_type() != tag_type::String) return {};
-            for (const auto& item : words) {
-                auto word = item.as<tag_string>().get();
-                if (validate(word)) res.push_back(word);
-            }
-            return res;
-        }
-        catch (const std::exception& e) {
-            return {};
-        }
-    }
-
-    NBTDictReader(const std::filesystem::path& path) : file(path) {}
-};
-
-class InvalidDictReader : public DictReader {
-public:
-    std::vector<std::string> read() override {
-        return {};
-    }
-};
-
-std::shared_ptr<DictReader> createDictReader(const std::filesystem::path& path, std::string type) {
-    std::transform(type.begin(), type.end(), type.begin(), [](unsigned char c) { return std::tolower(c); });
-    if (type == "plain") return std::make_shared<PlainDictReader>(path);
-    else if (type == "json") return std::make_shared<JSONDictReader>(path);
-    else if (type == "nbt") return std::make_shared<NBTDictReader>(path);
-    else return std::make_shared<InvalidDictReader>();
+std::vector<std::string> read_dict(const std::string& contents, const std::string& type) {
+    std::istringstream input(contents);
+    auto format = type;
+    std::transform(format.begin(), format.end(), format.begin(), [](unsigned char ch) { return std::tolower(ch); });
+    if (format == "plain") return read_plain(input);
+    if (format == "json") return read_json(input);
+    if (format == "nbt") return read_nbt(input);
+    throw std::invalid_argument("Unknown dictionary format: " + type);
 }

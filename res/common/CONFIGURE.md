@@ -1,36 +1,61 @@
-# Mirekintoc Wordle 4.x 配置指南
+# 配置
 
-1. `core : string` 用于识别配置文件版本，以一种算法命名，本指南仅针对 `aho-corasick` 版本，请勿更改。
-2. `base : object` Wordle 基本配置。
-   - `answers/accepts : array` 声明用于存储答案词库/合法词库的文件，每个文件为一个 `object`，其中包括 `file` 字段（用于存储的文件名）和 `type` 字段（存储格式，可以是 `plain`、`json`、`nbt` 之一）。
-   - `validation : boolean` 是否启用校验，关闭将不检查输入是否为合法词库内的单词。
-   - `limit : integer` 猜测次数上限，`-1` 表示不设置上限。
-   - `virtualTerminal : boolean` 呈现复杂内容的方式，开启表示尽可能使用控制台虚拟终端序列，关闭表示尽可能使用 Win32 API。
-   - `mouseControlling : boolean` 鼠标控制模式，开启将不兼容 `Windows Terminal`、`MinTTY` 等非传统控制台。
-   - `charmap : boolean` 在游戏中显示字符表。
-   - `codepage : integer` 运行代码页，`-1` 表示更改代码页。除非您很清楚自己在做什么，否则不建议更改此项。不匹配程序编码或本地化文件的代码页或导致乱码。
-   - `handleInterrupt : boolean` 捕获非正常终止程序，包括 `Ctrl+C/Ctrl+Break` 组合键、 关闭窗口、注销，不包括应用程序异常。除非您很清楚自己在做什么，否则不建议更改此项。少数情况下关闭该选项将导致数据损坏或丢失。
-   - `wal : integer` Write-Ahead Logging 配置，`0` 表示禁用，`1` 表示启用且每次退出程序时清空，`2` 表示启用且完全由 SQLite 系统机制管理。其他值等同于 `0`。
-   - `language : string` 显示语言，您应当保证对应的 `.lang`（JSON 格式的本地化文件）存在。如果您不会配置 `codepage`，请不要设置为非以 `.UTF-8` 结尾的值。
-   - `calendar : string` 历法，接受的值包括 `default`（不指名）、`gregorian`、`buddhist`、`chinese`、`japanese`、`islamic`、`islamic-civil`、`islamic-umalqura`、`roc` 等
-3. `dictionary : object` 词典管理设置。
-   - `validation : boolean` 在词典中启用规则合法性校验。该项的作用不同于 `base.validation`。
-   - `cleanup : boolean` 退出词典时清空临时数据，包括载入的主词库和规则集。
-   - `highlights : array` 词汇高亮设置。每一项规则均为一个 `object`，其中 `category` 表示来源词库（`*` 代表其余全部），`color` 表示颜色（16 色，`R`=红，`G`=绿，`B`=蓝，`L`=高亮，其他字符无效，重复无效）。
-   - `pageSize : boolean` 每页显示词汇数量。
-   - `showId : boolean` 显示在所选词库中的编号。
-   - `showImpossible : boolean` 显示根据规则已经排除的词汇。
-   - `impossibleColor : string` 显示已经被排除的词汇使用的颜色。
-   - `searchEngines : array` 用于搜索词汇的搜索引擎，每一项均为一个 `object`，其中 `id` 表示名称，`url` 表示网址（其中 `%s` 表示被搜索的词汇且只能出现一次）。
-   - `search : boolean` 启用搜索。
-   - `searchEngine : string` 默认搜索引擎，必须为 `searchEngines` 中某项的 `id`。
-4. `plugins : object` 插件管理。
-   - `enabled : boolean` 启用插件系统。
-   - `scripting : boolean` 允许插件使用脚本（`.mpc` 文件）。
-   - `dynamicLibraries : boolean` 允许插件脚本使用动态链接库。除非您很信任插件的作者，或对插件文件进行了充分的检查，否则您不应该开启此项，这将让您的电脑暴露于可能存在的危险之中。
-   - `system : boolean` 允许插件脚本使用系统命令处理。除非您很信任插件的作者，或对插件文件进行了充分的检查，否则您不应该开启此项，这将让您的电脑暴露于可能存在的危险之中。
-   - `prependLocation : boolean` 在插件配置文件中的所有路径前添加插件路径。这是大多数插件所需要的。该配置对脚本的文件操作无效。
-   - `isolated : boolean` 隔离各插件脚本的跟级作用域。这将阻止插件从其他插件获取或更改信息，但会使得可能存在的依赖关系失效。
-   - `enableFeatures : array` 启用的功能。每一项均为字符串，有效的值包含 `dictionaries`、`words`、`searchEngines`、`judgers`、`validators`、`problemsets`、`languages`，其中 `dictionaries` 隐含 `words`。
-   - `manifest : string` 插件清单文件名。如果没有特殊的需求，不建议改为 `manifest.json` 以外的值。
-   - `loadeds : array` 已加载的插件。每一项均为一个 `object`，其中 `directory` 表示存放插件的目录（`plugins` 的子目录），`id` 表示插件内部名称。您应当保证 `id` 与清单文件中的 `id` 相同，否则将不会加载插件。
+运行目录必须同时包含 `config.json` 和 `core.json`，两者使用 `schemaVersion: 2`。未知字段会被拒绝。
+
+- `config.json` 只描述程序行为、默认选择和插件加载列表。
+- `core.json` 是 ID 为 `core` 的必需标准插件，提供 `core.english` 词典；它固定先于可选插件加载，加载失败时程序终止。
+- 核心词表是运行目录中的静态 `accept.dict` 与 `answer.dict`，无需下载或额外生成。
+
+## 文本高亮
+
+`config.json` 的 `highlight` 提供完整的终端 UI 色板，所有值均使用 `COLORS.md` 的颜色表达式：
+
+```json
+"highlight": {
+  "foreground": "term:RGL",
+  "background": "term:",
+  "muted": "term:L",
+  "selected": "term:RGL",
+  "hover": "term:RGL",
+  "inputActive": "term:GL",
+  "inputPlaceholder": "term:L",
+  "error": "term:RL",
+  "dictionaryImpossible": "term:L",
+  "accept": "term:RGB",
+  "answer": "term:GL,b"
+}
+```
+
+`foreground`、`background` 是普通 UI 的前景和底色；`muted` 用于禁用项及辅助内容；`selected` 与 `hover` 分别用于键盘选中和鼠标悬浮；`inputActive`、`inputPlaceholder` 控制输入框；`error` 用于输入校验错误。`dictionaryImpossible` 用于词典查看器中显示不可行词时的文字颜色。词典查看器对答案使用 `answer`，对其余接受词使用 `accept`；不再提供 scope、优先级或可选规则列表。
+
+## 创建页默认值
+
+- `defaults.dictionary`：游戏与词典查看器的默认词典，默认 `core.english`。
+- `defaults.grader`：游戏与词典查看器的默认 grader，默认 `core.wordle`。
+- `game.answerOnly`：是否只从 `answers` 中抽取答案；为 `false` 时从全部 `acceptable` 词中抽取。
+- `game.validation`：是否要求猜词属于当前词典的 `acceptable` 集合。
+- `game.maxGuesses`：-1/0 表示不限，正数为上限。
+- `game.showAlphabet`：是否显示字母表。
+- `dictionary.answerOnly`：查看器是否只显示 `answers`；为 `false` 时显示全部 `acceptable` 词。该项不改变词汇有效性检查。
+- `dictionary.validation`：输入筛选条件时，是否要求它属于当前词典的 `acceptable` 集合。
+- `dictionary.cleanupOnExit`、`showIds` 和 `showImpossible` 控制查看器行为；不可行词颜色由 `highlight.dictionaryImpossible` 控制。
+
+游戏直接选择 grader，不再经过额外的模式资源。内置 grader 为 `core.wordle`、`core.letter_presence`、`core.match_count`、`core.hardle`，插件 grader 与它们处于同一级。
+
+## 终端、语言与存储
+
+- `terminal.backend`：`auto` / `ansi` / `curses` / `win32` / `win32-vt`。`win32` 始终使用原生 Console API；`win32-vt` 明确要求时才优先启用 VT 输出、输入和鼠标，无法启用则回退到原生路径。
+- `terminal.mouse` 和 `terminal.handleInterrupts` 控制输入行为。
+- `terminal.cursesTerm`：供 Curses 调用 `newterm` 的 terminfo 名；空字符串（默认）表示不替换当前终端。此项只提供显式尝试某个 terminfo 的能力，目标不存在或实际终端不兼容时初始化会失败。
+- `terminal.cursesAnsi16`：枚举字符串 `"auto"`（默认）、`"on"` 或 `"off"`；旧布尔值和 `"true"` / `"false"` 仍兼容。direct color 时，`auto` 视 ANSI 16 为不兼容，`"on"` 才尽力保留 ANSI 0..15；非 direct color 时此项不影响回退。`terminal.cursesReservedColors` 用于 direct color 的 RGB 编号避让，范围 0..256，默认 256，即保留 0..255；设置此项不改变 terminfo 本身的颜色模型。
+- `locale.language` 使用 BCP 47；`calendar` 默认 `default`，`timeZone` 默认 `local`。
+- `storage.wal`：枚举字符串 `"off"`、`"checkpoint"` 或 `"keep"`；默认配置使用 `"checkpoint"`，旧数值 0/1/2 仍兼容。
+
+## 搜索与插件
+
+- `dictionary.search.engines` 是搜索引擎 ID 到 HTTP(S) URL 的映射，每个 URL 必须恰含一个 `%s`。
+- `plugins.load` 是 `{id,path}` 数组，目录相对运行目录的 `plugins/`，入口固定为 `manifest.json`。
+- `plugins.runtimes` 可允许 `lua`，且该后端必须在构建时启用。
+- `plugins.enabled: false` 只关闭可选插件，不关闭必需的 `core.json`。
+
+默认可选插件为 Unix dict、Lingua Latina 与 Hardcore；默认配置因此允许 Lua runtime。移除 Hardcore 或将 `plugins.runtimes` 设为空可禁用脚本执行。

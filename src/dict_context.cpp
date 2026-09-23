@@ -1,74 +1,80 @@
+#include "options.hpp"
+#include "registry.hpp"
 #include "dict_context.hpp"
 #include "util/dialog.hpp"
-#include "ipc.hpp"
+#include "eventbus.hpp"
 #include "i18n.hpp"
 #include "logger.hpp"
 
-DictContext::DictContext(std::string parent, JudgerType* judger) : parent(std::move(parent)), judger(judger) {
-    int index = 0;
-    for (const auto& word : options->dictionaries[this->parent]) {
-        char color = 15;
-        for (const auto&[category, icolor] : options->dictHighlights) {
-            if (category == "*" || options->dictionaries.count(category) && options->dictionaries[category].count(word)) {
-                color = icolor;
-                break;
-            }
-        }
-        all.insert({word, {++index, color}});
+DictContext::DictContext(
+    std::string parent, std::shared_ptr<GraderType> grader,
+    bool answerOnly, bool validate, bool showImpossible
+) : parent(std::move(parent)), validate(validate), showImpossible(showImpossible), grader(std::move(grader)) {
+    if (!this->grader || (!this->grader->deterministic && !this->grader->hasCompatible)) {
+        throw std::invalid_argument("Dictionary filtering requires a deterministic grader or compatible checker");
+    }
+    const auto& dict = registry->dicts.at(this->parent);
+    int ix = 0;
+    for (const auto& word : answerOnly ? dict.answers : dict.acceptable) {
+        all.emplace(word, std::make_pair(++ix, registry->wordColor(this->parent, word)));
     }
     remaining = all;
 }
 
-void DictContext::addRestriction(const std::string word) {
-    Restriction restriction;
-    restriction.word = word;
-    for (int i = 0; i < 5; i++) restriction.state[i] = judger->ruleset.begin();
-    restrictions.push_back(restriction);
+void DictContext::add(const std::string word) {
+    Restriction res;
+    res.displayWord = word;
+    res.word = registry->dicts.at(parent).normalize(word);
+    if (!registry->dicts.at(parent).valid(res.word)) {
+        throw std::invalid_argument("Invalid restriction word");
+    }
+    for (int i = 0; i < 5; i++) res.state[i] = grader->ruleset.begin();
+    if (validate && !registry->dicts.at(parent).acceptable.count(res.word)) {
+        throw std::invalid_argument("Restriction word is not accepted by this dictionary");
+    }
+    restrictions.push_back(res);
 }
 
-void DictContext::increaseRestriction(int wordIndex, int charIndex) {
-    if (wordIndex < 0 || wordIndex >= restrictions.size()) return;
-    if (charIndex < 0 || charIndex >= 5) return;
-    restrictions[wordIndex].state[charIndex]++;
-    if (restrictions[wordIndex].state[charIndex] == judger->ruleset.end()) {
-        restrictions[wordIndex].state[charIndex] = judger->ruleset.begin();
+void DictContext::next(int wordIx, int charIx) {
+    if (wordIx < 0 || wordIx >= restrictions.size()) return;
+    if (charIx < 0 || charIx >= 5) return;
+    restrictions[wordIx].state[charIx]++;
+    if (restrictions[wordIx].state[charIx] == grader->ruleset.end()) {
+        restrictions[wordIx].state[charIx] = grader->ruleset.begin();
     }
 }
 
-void DictContext::removeRestriction(int index) {
+void DictContext::remove(int index) {
     if (index < 0 || index >= restrictions.size()) return;
     restrictions.erase(restrictions.begin() + index);
 }
 
-int DictContext::countRestrictions() {
-    return restrictions.size();
-}
+int DictContext::count() { return restrictions.size(); }
 
-bool DictContext::applyRestrictions() {
+bool DictContext::apply() {
     remaining.clear();
     for (const auto& [word, conf] : all) {
         bool possible = true;
-        for (const auto& restriction : restrictions) {
+        for (const auto& res : restrictions) {
             try {
-                auto result = judger->func(restriction.word, word);
-                for (int i = 0; i < 5; i++) {
-                    if (result[i] != restriction.state[i]->first) {
-                        possible = false;
-                        break;
-                    }
-                }
+                std::vector<int> fb(5);
+                for (int i = 0; i < 5; i++) fb[i] = res.state[i]->first;
+                if (grader->deterministic) possible = grader->func(res.word, word) == fb;
+                else possible = grader->compatible(res.word, word, fb);
             }
             catch (const std::exception& e) {
-                logger.write(Logger::Error, "JUDGE", "评测时出错：" + word + " <=> " + restriction.word + " - " + e.what());
-                confirm(64, 8, translate("{hint.judge_failed}\n") + e.what(), []() {
-                    ipc->send({"shutdown", 0});
+                logger.write(Logger::Error, "JUDGE",
+                    "评测时出错：" + word + " <=> " + res.word + " - " + e.what()
+                );
+                confirm(64, 8, tr(msg::ErrorGrader {e.what()}), []() {
+                    evbus->send(Events::Shutdown {});
                 });
                 return true;
             }
             if (!possible) break;
         }
         if (possible) remaining.insert({word, conf});
-        else if (options->dictShowImpossible) remaining.insert({word, {conf.first, options->dictImpossibleColor}});
+        else if (showImpossible) remaining.insert({word, {conf.first, options->colors.dictionaryImpossible}});
     }
     return false;
 }

@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 2,
+  "id": "core.ext.easier",
+  "name": "Easier Wordle",
+  "version": "1.0.0",
+  "author": "Mirekintoc",
+  "license": "MIT",
+  "description": "Wordle feedback with wrong-position colors indicating the matching answer position.",
+  "runtime": [
+    {
+      "id": "lua",
+      "backend": "lua",
+      "entry": "easier.lua",
+      "exports": ["check"]
+    }
+  ],
+  "graders": {
+    "core.ext.easier.grader": {
+      "name": "Easier Wordle",
+      "runtime": "lua",
+      "exports": {"check": "check"},
+      "deterministic": true,
+      "states": {
+        "0": {"color": "term:RGBL", "mode": "spoiler", "overrides": [-1]},
+        "1": {"color": "term:RL", "mode": "mark", "overrides": [-1, 0]},
+        "2": {"color": "term:RGL", "mode": "mark", "overrides": [-1, 0]},
+        "3": {"color": "term:GBL", "mode": "mark", "overrides": [-1, 0]},
+        "4": {"color": "term:RBL", "mode": "mark", "overrides": [-1, 0]},
+        "5": {"color": "term:GL", "mode": "mark", "overrides": [-1, 0, 1, 2, 3, 4]}
+      }
+    }
+  }
+}

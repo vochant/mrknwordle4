@@ -1,48 +1,58 @@
 #include "widgets/menu.hpp"
 #include "options.hpp"
 #include "services/mouse.service.hpp"
-#include "render.hpp"
 
 int Menu::getSelection() {
-    if (!options->mouseControlling) return -1;
-    int my = mouse_service->where().second;
-    if (my < ay || my >= ay + h || my < ax || my >= ax + w) return -1;
+    if (!options->term.mouse) return -1;
+    auto pos = mouse_service->where();
+    int my = pos.second;
+    if (my < ay || my >= ay + h || pos.first < ax || pos.first >= ax + w) return -1;
     return my - ay;
 }
 
 void Menu::render(PaintBrush* pb, bool redraw) {
+    redraw |= changed;
+    changed = false;
     int sel = getSelection();
     if (sel != prev_focus) prev_focus = sel, redraw = true;
     if (!redraw) return;
     for (int i = 0; i < num_entries; i++) {
         pb->locate(ax, ay + i);
-        pb->color(i == sel ? 14 : 15, 0);
-        pb->text(entries[i].first + std::string(w - entries[i].first.length(), ' '));
+        pb->color(i == sel ? options->colors.hover : options->colors.foreground, options->colors.background);
+        pb->fill(ax, ay + i, ax + w - 1, ay + i);
+        pb->locate(ax, ay + i);
+        pb->textBox(entries[i].first, w, 1, false);
     }
 }
 
-void Menu::onClick(int ix, int iy) {
+void Menu::onClick(int, int iy) {
     if (iy < 0 || iy >= num_entries) return;
     entries[iy].second();
 }
 
-void Menu::onInput(int ch) {
+bool Menu::onInput(int ch) {
     if (prev_focus != -1 && ch == '\r') {
         entries[prev_focus].second();
+        return true;
     }
-    else if (keymap.count(ch)) {
+    if (keymap.count(ch)) {
         entries[keymap[ch]].second();
+        return true;
     }
+    return false;
 }
 
 void Menu::set(int ix, std::string text) {
     if (ix < 0 || ix >= num_entries) return;
-    renderer_lock.lock();
+
     entries[ix].first = text;
-    renderer_lock.unlock();
+    changed = true;
 }
 
-Menu::Menu(int x, int y, int w, std::vector<std::tuple<std::string, std::function<void()>, int>> entries) : Widget(x, y, w, entries.size()) {
+Menu::Menu(
+    int x, int y, int w,
+    std::vector<std::tuple<std::string, std::function<void()>, int>> entries
+) : Widget(x, y, w, entries.size()) {
     num_entries = 0;
     for (const auto& entry : entries) {
         this->entries.emplace_back(std::get<0>(entry), std::get<1>(entry));

@@ -1,0 +1,102 @@
+.\" Man page for mrknwordle4
+.TH WORDLE4 6 "2026-09-23" "mrknwordle4 4.1" "Games"
+.SH NAME
+wordle4 \- configurable terminal Wordle game
+.SH SYNOPSIS
+.B wordle4
+.RI [ OPTION ]
+.SH DESCRIPTION
+.B wordle4
+is an interactive terminal implementation of Wordle.  It loads its runtime
+configuration and resources from the current working directory, then provides
+game, dictionary, history, user, and plugin interfaces.
+.PP
+The interface requires a terminal of at least 80 columns by 25 rows.  Smaller
+terminals display a resize prompt until they are large enough.
+.SH OPTIONS
+.TP
+.B \-h, \--help
+Display a short usage summary and exit.
+.TP
+.B \-a, \--about
+Display program information and license text, then exit.
+.TP
+.B \-v, \--version
+Display the program name and version, then exit.
+.SH FILES
+All paths below are resolved relative to the current working directory.
+.TP
+.B config.json
+Required runtime configuration file.  It must use schema version 2.
+.TP
+.B core.json
+Required core resource manifest.
+.TP
+.B accept.dict
+Generated dictionary of accepted words.
+.TP
+.B answer.dict
+Generated dictionary of possible answers.
+.TP
+.B i18n/
+Localization catalogs.
+.TP
+.B user.db
+Persistent user database, created on first successful initialization.
+.TP
+.B logs/
+Diagnostic logs, created after normal startup initialization.
+.SH ENVIRONMENT
+.TP
+.B WORDLE_BACKEND
+Override the configured terminal backend.  Supported values are
+.BR auto ,
+.BR curses , and
+.BR ansi
+on supported builds, plus the supported Windows backends.
+.TP
+.B PDC_LINES
+Set the initial number of rows used by PDCurses.  If neither PDC_LINES nor
+PDC_COLS is set, wordle4 requests the application default of 25 rows.
+.TP
+.B PDC_COLS
+Set the initial number of columns used by PDCurses.  If neither PDC_LINES nor
+PDC_COLS is set, wordle4 requests the application default of 80 columns.
+.SH EXIT STATUS
+.TP
+.B 0
+Successful completion, including informational options.
+.TP
+.B 1
+Startup or runtime error.
+.TP
+.B 2
+Command-line usage error.
+.SH EXAMPLES
+.TP
+Start the game from a prepared runtime directory:
+.EX
+cd /path/to/wordle4-runtime
+wordle4
+.EE
+.TP
+Use the ANSI backend explicitly:
+.EX
+WORDLE_BACKEND=ansi wordle4
+.EE
+.TP
+Set a PDCurses window size explicitly:
+.EX
+PDC_COLS=80 PDC_LINES=25 wordle4
+.EE
+.SH NOTES
+The PDCurses X11 backend requires an X core font that matches its configured
+Unicode fixed font.  If the font is installed in a directory not present in
+the X server font path, add it and refresh the path before starting wordle4,
+for example:
+.EX
+xset +fp /usr/share/fonts/misc
+xset fp rehash
+.EE
+.SH SEE ALSO
+.BR xset (1)

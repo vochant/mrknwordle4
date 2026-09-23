@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 2,
+  "id": "core.ext.lingua-latina",
+  "name": "Lingua Latina",
+  "version": "1.0.0",
+  "author": "Mirekintoc",
+  "description": "Wordle in Lingua Latina",
+  "dictionaries": {
+    "core.ext.lingua-latina.latin": {
+      "name": "Lingua Latina",
+      "equivalents": ["jw!"]
+    }
+  },
+  "words": [
+    {
+      "filter": "core.ext.lingua-latina.latin",
+      "target": "accept",
+      "file": "accept.txt",
+      "type": "plain"
+    },
+    {
+      "filter": "core.ext.lingua-latina.latin",
+      "target": "answer",
+      "file": "answer.txt",
+      "type": "plain"
+    }
+  ]
+}

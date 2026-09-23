@@ -1,47 +1,44 @@
 #include "userdb.hpp"
+#include <cmath>
 #include "bcrypt.h"
 #include "logger.hpp"
 #include <ctime>
-#include <unicode/datefmt.h>
-#include <unicode/unistr.h>
-#include <unicode/calendar.h>
 #include <sstream>
 #include "i18n.hpp"
+#include "registry.hpp"
 
 sqlite3* user_db;
 int uid;
 std::string username, search_engine;
 std::vector<int> history_ids;
-icu_74::DateFormat* userdb_fmt, * userdb_fmt_long;
+std::string time_to_string(long long time, bool detailed = false) { return I18n::active().dateTime(time, detailed); }
 
-std::string time_to_string(long long time, bool _long = false) {
-    UDate unow = static_cast<UDate>(time) * 1000.0;
-    
-    icu::UnicodeString result;
-    if (!_long) userdb_fmt->format(unow, result);
-    else userdb_fmt_long->format(unow, result);
+namespace {
+    std::string column_text(sqlite3_stmt* stmt, int column) {
+        const auto* value = (const char*) sqlite3_column_text(stmt, column);
+        return value ? value : "";
+    }
 
-    result.findAndReplace(u"\u202F", u" ");
+    std::string dict_display_name(const std::string& id) {
+        if (registry) {
+            const auto found = registry->dicts.find(id);
+            if (found != registry->dicts.end()) return found->second.name;
+        }
+        return id;
+    }
 
-    std::string utf8_result;
-    result.toUTF8String(utf8_result);
-    return utf8_result;
-}
+    std::string grader_display_name(const std::string& id) {
+        if (registry) {
+            const auto found = registry->graders.find(id);
+            if (found != registry->graders.end()) return found->second->name;
+        }
+        return id;
+    }
+
+} // namespace
 
 bool init_user_db() {
-    userdb_fmt = icu::DateFormat::createDateTimeInstance(
-        icu::DateFormat::SHORT,
-        icu::DateFormat::DEFAULT,
-        icu::Locale((options->language + (options->calendar != "default" ? "@calendar=" + options->calendar : "")).c_str())
-    );
-
-    userdb_fmt_long = icu::DateFormat::createDateTimeInstance(
-        icu::DateFormat::FULL,
-        icu::DateFormat::MEDIUM,
-        icu::Locale((options->language + (options->calendar != "default" ? "@calendar=" + options->calendar : "")).c_str())
-    );
-
-    if (options->dictSearch) search_engine = options->dictSearchEngine;
+    if (options->dict.search) search_engine = options->dict.searchEngine;
     uid = -1;
     username = "";
     int rc = sqlite3_open("user.db", &user_db);
@@ -50,7 +47,7 @@ bool init_user_db() {
         logger.write(Logger::Error, "userdb", std::string("无法打开数据库: ") + sqlite3_errmsg(user_db));
         return false;
     }
-    if (options->walType > 0) {
+    if (options->storage.wal != Wal::Off) {
         rc = sqlite3_exec(user_db, "PRAGMA journal_mode=WAL;", 0, 0, 0);
         if (rc != SQLITE_OK) {
             fprintf(stderr, "Failed to set WAL mode: %s\n", sqlite3_errmsg(user_db));
@@ -62,13 +59,24 @@ bool init_user_db() {
         fprintf(stderr, "Failed to enable foreign keys: %s\n", sqlite3_errmsg(user_db));
         logger.write(Logger::Error, "userdb", std::string("无法启用外键: ") + sqlite3_errmsg(user_db));
     }
-    rc = sqlite3_exec(user_db, "CREATE TABLE IF NOT EXISTS users (uid INTEGER PRIMARY KEY, username TEXT UNIQUE, password TEXT, search_engine TEXT);", 0, 0, 0);
+    rc = sqlite3_exec(
+        user_db,
+        "CREATE TABLE IF NOT EXISTS users (uid INTEGER PRIMARY KEY, username TEXT UNIQUE, password TEXT, "
+        "search_engine TEXT);",
+        0, 0, 0
+    );
     if (rc != SQLITE_OK) {
         fprintf(stderr, "Failed to create users table: %s\n", sqlite3_errmsg(user_db));
         logger.write(Logger::Error, "userdb", std::string("无法创建用户表: ") + sqlite3_errmsg(user_db));
         return false;
     }
-    rc = sqlite3_exec(user_db, "CREATE TABLE IF NOT EXISTS histories (id INTEGER PRIMARY KEY, uid INTEGER NOT NULL, answer TEXT NOT NULL, history TEXT NOT NULL, gamemode TEXT NOT NULL, num_guess INTEGER NOT NULL, timestamp INTEGER NOT NULL, FOREIGN KEY(uid) REFERENCES users(uid) ON DELETE CASCADE);", 0, 0, 0);
+    rc = sqlite3_exec(
+        user_db,
+        "CREATE TABLE IF NOT EXISTS histories (id INTEGER PRIMARY KEY, uid INTEGER NOT NULL, answer TEXT "
+        "NOT NULL, history TEXT NOT NULL, dictionary TEXT, grader TEXT NOT NULL, num_guess INTEGER NOT "
+        "NULL, timestamp INTEGER NOT NULL, FOREIGN KEY(uid) REFERENCES users(uid) ON DELETE CASCADE);",
+        0, 0, 0
+    );
     if (rc != SQLITE_OK) {
         fprintf(stderr, "Failed to create histories table: %s\n", sqlite3_errmsg(user_db));
         logger.write(Logger::Error, "userdb", std::string("无法创建历史记录表: ") + sqlite3_errmsg(user_db));
@@ -85,11 +93,9 @@ bool init_user_db() {
 
 void close_user_db() {
     if (!user_db) return;
-    
-    if (options->walType == 1) {
+
+    if (options->storage.wal == Wal::Checkpoint) {
         logger.write(Logger::Debug, "userdb", "执行 WAL 检查点以合并数据");
-        
-        // 首先尝试标准的 FULL 检查点
         int rc = sqlite3_wal_checkpoint_v2(user_db, nullptr, SQLITE_CHECKPOINT_FULL, nullptr, nullptr);
         if (rc != SQLITE_OK) {
             fprintf(stderr, "WAL checkpoint failed: %s\n", sqlite3_errmsg(user_db));
@@ -118,10 +124,13 @@ int login_user(std::string username, std::string password) {
     sqlite3_bind_text(stmt, 1, username.c_str(), -1, SQLITE_STATIC);
     rc = sqlite3_step(stmt);
     if (rc == SQLITE_ROW) {
-        std::string hashed_password = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        std::string hashed_password = (const char*) sqlite3_column_text(stmt, 1);
         if (bcrypt::validatePassword(password, hashed_password)) {
             uid = sqlite3_column_int(stmt, 0);
-            search_engine = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+            search_engine = (const char*) sqlite3_column_text(stmt, 2);
+            if (!options->dict.searchEngines.count(search_engine)) {
+                search_engine = options->dict.searchEngine;
+            }
             ::username = username;
             sqlite3_finalize(stmt);
             return 0;
@@ -157,7 +166,7 @@ int create_user(std::string username, std::string password) {
     }
     sqlite3_bind_text(stmt, 1, username.c_str(), -1, SQLITE_STATIC);
     sqlite3_bind_text(stmt, 2, hashed_password.c_str(), -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 3, options->dictSearchEngine.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 3, options->dict.searchEngine.c_str(), -1, SQLITE_STATIC);
     rc = sqlite3_step(stmt);
     if (rc != SQLITE_DONE) {
         logger.write(Logger::Error, "userdb", std::string("无法创建用户: ") + sqlite3_errmsg(user_db));
@@ -181,7 +190,7 @@ bool check_password(std::string password) {
     sqlite3_bind_int(stmt, 1, uid);
     rc = sqlite3_step(stmt);
     if (rc == SQLITE_ROW) {
-        std::string hashed_password = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        std::string hashed_password = (const char*) sqlite3_column_text(stmt, 0);
         return bcrypt::validatePassword(password, hashed_password);
     }
     sqlite3_finalize(stmt);
@@ -235,7 +244,7 @@ bool change_username(std::string username) {
 }
 
 bool change_search_engine(std::string search_engine) {
-    if (user_db == nullptr) return false;
+    if (user_db == nullptr || !options->dict.searchEngines.count(search_engine)) return false;
 
     std::string sql = "UPDATE users SET search_engine = ? WHERE uid = ?";
     sqlite3_stmt* stmt;
@@ -257,13 +266,13 @@ bool change_search_engine(std::string search_engine) {
     return true;
 }
 
-bool write_history(std::string answer, std::string history, int num_guess, std::string gamemode) {
+bool write_history(std::string answer, std::string history, int num_guess, std::string dict, std::string grader) {
     if (user_db == nullptr) return false;
     if (uid == -1) return true;
 
     long long current_time = std::time(nullptr);
 
-    std::string sql = "INSERT INTO histories (uid, answer, history, num_guess, gamemode, timestamp) VALUES (?, ?, ?, ?, ?, ?)";
+    std::string sql = "INSERT INTO histories (uid, answer, history, num_guess, dictionary, grader, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)";
     sqlite3_stmt* stmt;
     int rc = sqlite3_prepare_v2(user_db, sql.c_str(), -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {
@@ -274,8 +283,9 @@ bool write_history(std::string answer, std::string history, int num_guess, std::
     sqlite3_bind_text(stmt, 2, answer.c_str(), -1, SQLITE_STATIC);
     sqlite3_bind_text(stmt, 3, history.c_str(), history.size(), SQLITE_STATIC);
     sqlite3_bind_int(stmt, 4, num_guess);
-    sqlite3_bind_text(stmt, 5, gamemode.c_str(), -1, SQLITE_STATIC);
-    sqlite3_bind_int64(stmt, 6, current_time);
+    sqlite3_bind_text(stmt, 5, dict.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 6, grader.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_int64(stmt, 7, current_time);
     rc = sqlite3_step(stmt);
     if (rc != SQLITE_DONE) {
         logger.write(Logger::Error, "userdb", std::string("无法写入历史记录: ") + sqlite3_errmsg(user_db));
@@ -289,7 +299,7 @@ bool write_history(std::string answer, std::string history, int num_guess, std::
 void logout_user() {
     uid = -1;
     username = "";
-    search_engine = options->dictSearchEngine;
+    search_engine = options->dict.searchEngine;
 }
 
 bool remove_user() {
@@ -364,9 +374,9 @@ std::vector<std::string> get_history(int offset, int limit) {
     history_ids.clear();
     while (rc == SQLITE_ROW) {
         int id = sqlite3_column_int(stmt, 0);
-        const char* answer = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        const char* answer = (const char*) sqlite3_column_text(stmt, 1);
         long long timestamp = sqlite3_column_int64(stmt, 2);
-        result.push_back("[" + std::to_string(id) + "] " + time_to_string(timestamp) + " " + answer);
+        result.push_back(tr(msg::HistoryEntry {id, time_to_string(timestamp), answer}));
         history_ids.push_back(id);
         rc = sqlite3_step(stmt);
     }
@@ -375,42 +385,37 @@ std::vector<std::string> get_history(int offset, int limit) {
 }
 
 std::string get_history_detail(int id) {
-    if (user_db == nullptr) return translate("{hint.invalid_history}");
+    if (user_db == nullptr) return tr(Msg::HintInvalidHistory);
 
-    std::string sql = "SELECT answer, history, num_guess, gamemode, timestamp FROM histories WHERE id = ?";
+    std::string sql = "SELECT answer, history, num_guess, dictionary, grader, timestamp FROM histories WHERE id = ?";
     sqlite3_stmt* stmt;
     int rc = sqlite3_prepare_v2(user_db, sql.c_str(), -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {
         logger.write(Logger::Error, "userdb", std::string("无法准备语句: ") + sqlite3_errmsg(user_db));
-        return translate("{hint.invalid_history}");
+        return tr(Msg::HintInvalidHistory);
     }
     sqlite3_bind_int(stmt, 1, id);
     rc = sqlite3_step(stmt);
     if (rc != SQLITE_ROW) {
         if (rc == SQLITE_DONE) {
             sqlite3_finalize(stmt);
-            return translate("{hint.invalid_history}");
+            return tr(Msg::HintInvalidHistory);
         }
         logger.write(Logger::Error, "userdb", std::string("无法获取历史记录: ") + sqlite3_errmsg(user_db));
         sqlite3_finalize(stmt);
-        return translate("{hint.invalid_history}");
+        return tr(Msg::HintInvalidHistory);
     }
-    std::stringstream ss;
-    ss << '#' << id << '\n';
-    ss << translate("{slot.playtime}: ") << time_to_string(sqlite3_column_int64(stmt, 4), true) << '\n';
-    ss << translate("{slot.gamemode}: ") << reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3)) << '\n';
-    ss << translate("{slot.answer}: ") << reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0)) << '\n';
-    int num_guess = sqlite3_column_int(stmt, 2);
-    if (~num_guess) {
-        std::string hint_num_guess = translate("{slot.num_guess}");
-        int log10_num_guess = num_guess ? std::floor(std::log10(num_guess)) : 1;
-        char* result = new char[hint_num_guess.length() + log10_num_guess];
-        std::sprintf(result, hint_num_guess.c_str(), num_guess);
-        ss << result << '\n';
-        delete[] result;
-    }
-    else ss << translate("{hint.failed_to_guess}") << '\n';
-    ss << reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1)) << '\n';
+    int count = sqlite3_column_int(stmt, 2);
+    auto result = count >= 0 ? tr(msg::SlotNumGuess {count}) : tr(Msg::HintFailedToGuess);
+    const auto dict = column_text(stmt, 3);
+    const auto grader = column_text(stmt, 4);
+    auto content = tr(msg::HistoryDetail {
+        id, time_to_string(sqlite3_column_int64(stmt, 5), true),
+        tr(msg::FieldValue {tr(Msg::SetupDictionary), dict_display_name(dict)}),
+        tr(msg::FieldValue {tr(Msg::SetupGrader), grader_display_name(grader)}),
+        column_text(stmt, 0), result
+    });
+    content += column_text(stmt, 1);
     sqlite3_finalize(stmt);
-    return ss.str();
+    return content;
 }

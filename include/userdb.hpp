@@ -18,7 +18,7 @@ bool check_password(std::string password);
 bool change_password(std::string password);
 bool change_username(std::string username);
 bool change_search_engine(std::string search_engine);
-bool write_history(std::string answer, std::string history, int num_guess, std::string gamemode);
+bool write_history(std::string answer, std::string history, int num_guess, std::string dictionary, std::string grader);
 int count_history();
 std::vector<std::string> get_history(int offset, int limit);
 std::string get_history_detail(int id);

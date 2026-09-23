@@ -1,97 +1,96 @@
 #pragma once
 
-#include <vector>
-#include <string>
+#include "color.hpp"
+#include "dictionary.hpp"
+#include <filesystem>
 #include <map>
 #include <set>
+#include <string>
 #include <utility>
-#include <nlohmann/json.hpp>
-#include <functional>
+#include <vector>
+#include <nlohmann/json_fwd.hpp>
 
-using namespace nlohmann;
-
-bool basicValidation(const std::string& str);
-
-typedef std::function<std::vector<int>(const std::string&, const std::string&)> JudgerFunc;
-
-struct JudgerType {
-    struct JudgerResult {
-        char color;
-        bool isSpoiler;
-        std::set<int> overrides;
-    };
-
-    bool determined;
-
-    JudgerFunc func;
-    std::map<int, JudgerResult> ruleset;
+struct GameOptions {
+    bool answerOnly = true;
+    bool validation = true;
+    int limit = -1;
+    bool charmap = true;
 };
 
-typedef std::set<std::string> Dictionary;
-typedef std::function<bool(const std::string&)> ValidatorType;
-typedef std::function<std::string()> ProblemsetType;
+enum class CursesAnsi16 { Auto, On, Off };
+enum class Wal { Off, Checkpoint, Keep };
 
-struct Gamemode {
-    JudgerType* judger;
-    ValidatorType validator;
-    ProblemsetType problemset;
-    std::string displayName;
+struct TermOptions {
+    std::string backend = "auto";
+    bool mouse = false;
+    bool handleInterrupt = true;
+    std::string cursesTerm;
+    CursesAnsi16 cursesAnsi16 = CursesAnsi16::Auto;
+    int cursesReservedColors = 256;
 };
 
-#define PLUGIN_DICTIONARIES 3 // PLUGINS_WORDS is included
-#define PLUGIN_WORDS 2
-#define PLUGIN_SEARCH_ENGINES 4
-#define PLUGIN_JUDGERS 8
-#define PLUGIN_GAMEMODES 16
-#define PLUGIN_PROBLEMSETS 32
-#define PLUGIN_VALIDATORS 64
-#define PLUGIN_LANGUAGES 128
+struct LocaleOptions {
+    std::string language = "en-US";
+    std::string timeZone = "local";
+    std::string calendar = "default";
+};
+
+struct StorageOptions {
+    Wal wal = Wal::Off;
+};
+
+struct DictionaryOptions {
+    bool validation = false;
+    bool cleanup = true;
+    bool showId = true;
+    bool showImpossible = false;
+    bool answerOnly = false;
+    std::map<std::string, std::string> searchEngines;
+    bool search = true;
+    std::string searchEngine = "google";
+};
+
+struct DefaultsOptions {
+    std::string dictionary = "core.english";
+    std::string grader = "core.wordle";
+};
+
+struct PluginSource {
+    std::string id;
+    std::filesystem::path directory;
+};
+
+struct PluginOptions {
+    bool enabled = true;
+    std::vector<PluginSource> sources;
+    std::set<std::string> runtimes;
+};
+
+struct HighlightOptions {
+    Color foreground;
+    Color background;
+    Color muted;
+    Color selected;
+    Color hover;
+    Color inputActive;
+    Color inputPlaceholder;
+    Color error;
+    Color dictionaryImpossible;
+    Color accept;
+    Color answer;
+};
 
 struct Options {
-    std::map<std::string, Dictionary> dictionaries;
-    Dictionary fullDictionary;
-    bool validation;
-    int limit;
-    bool virtualTerminal;
-    bool mouseControlling;
-    bool charmap;
-    int codepage;
-    bool handleInterrupt;
-    short walType;
-    std::string language;
-    std::string calendar;
+    DefaultsOptions defaults;
+    GameOptions game;
+    TermOptions term;
+    LocaleOptions locale;
+    StorageOptions storage;
+    DictionaryOptions dict;
+    PluginOptions plugins;
+    HighlightOptions colors;
 
-    bool dictValidation;
-    bool dictCleanup;
-    std::vector<std::pair<std::string, char>> dictHighlights;
-    bool dictShowId;
-    bool dictShowImpossible;
-    char dictImpossibleColor;
-    std::map<std::string, std::string> dictSearchEngines;
-    bool dictSearch;
-    std::string dictSearchEngine;
-
-    bool pluginEnabled;
-    bool pluginScripting;
-    bool pluginDynamicLibraries;
-    bool pluginSystem;
-    bool pluginPrependLocation;
-    bool pluginIsolated;
-    short pluginFeatures;
-    std::string pluginManifest;
-    std::map<std::string, std::string> pluginList;
-    std::vector<std::pair<std::string, std::string>> pluginInfo;
-
-    std::map<std::string, JudgerType*> judgers;
-    std::vector<std::pair<std::string, JudgerType*>> determinedJudgers;
-    std::map<std::string, ValidatorType> validators;
-    std::map<std::string, ProblemsetType> problemsets;
-    std::map<std::string, Gamemode> gamemodes;
-
-    Options(json config);
-
-    void load_plugins();
-    void post_load();
+    explicit Options(const nlohmann::json& config);
 };
 
-extern Options* options;
+extern const Options* options;
