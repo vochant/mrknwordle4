@@ -11,7 +11,7 @@
 `config.json` 的 `highlight` 提供完整的终端 UI 色板，所有值均使用 `COLORS.md` 的颜色表达式：
 
 ```json
-"highlight": {
+"colors": {
   "foreground": "term:RGL",
   "background": "term:",
   "muted": "term:L",
@@ -38,7 +38,7 @@
 - `game.showAlphabet`：是否显示字母表。
 - `dictionary.answerOnly`：查看器是否只显示 `answers`；为 `false` 时显示全部 `acceptable` 词。该项不改变词汇有效性检查。
 - `dictionary.validation`：输入筛选条件时，是否要求它属于当前词典的 `acceptable` 集合。
-- `dictionary.cleanupOnExit`、`showIds` 和 `showImpossible` 控制查看器行为；不可行词颜色由 `highlight.dictionaryImpossible` 控制。
+- `dictionary.cleanupOnExit`、`showIds` 和 `showImpossible` 控制查看器行为；不可行词颜色由 `colors.dictionaryImpossible` 控制。
 
 游戏直接选择 grader，不再经过额外的模式资源。内置 grader 为 `core.wordle`、`core.letter_presence`、`core.match_count`、`core.hardle`，插件 grader 与它们处于同一级。
 

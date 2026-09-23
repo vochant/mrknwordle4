@@ -22,9 +22,9 @@ namespace minpoe {
         icu::DateFormatSymbols symbols(icu::Locale::getRoot(), status);
         const icu::UnicodeString months[] = {
             unicode("Plotilos"), unicode("Certōlos"), unicode("Hacralos"),
-            unicode("Hiraelos"), unicode("Acealos"),  unicode("Ennelos"),
-            unicode("Iduelos"),  unicode("Suvalos"),  unicode("Vollos"),
-            unicode("Carulos"),  unicode("Prebulos"), unicode("Ixeolos")
+            unicode("Hiraelos"), unicode("Acealos"), unicode("Ennelos"),
+            unicode("Iduelos"), unicode("Suvalos"), unicode("Vollos"),
+            unicode("Carulos"), unicode("Prebulos"), unicode("Ixeolos")
         };
         const icu::UnicodeString shortMonths[] = {
             unicode("Plo"), unicode("Cer"), unicode("Hac"), unicode("Hir"),
@@ -33,7 +33,7 @@ namespace minpoe {
         };
         const icu::UnicodeString weekdays[] = {
             unicode(""), unicode("Igumstē"), unicode("Malstē"),
-            unicode("Beostē"),   unicode("Novumstē"), unicode("Muostē"),
+            unicode("Beostē"), unicode("Novumstē"), unicode("Muostē"),
             unicode("Tiseostē"), unicode("Andumstē")
         };
         const icu::UnicodeString shortWeekdays[] = {
