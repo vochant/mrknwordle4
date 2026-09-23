@@ -45,7 +45,7 @@ void run_app() {
         pb->hline(x, x + w, y + 2, {x, x + 20, x + w});
         pb->vline(x + 20, y, y + 2, {y, y + 2});
     });
-    layout->add(std::make_unique<Text>(2, 1, 18, "MrknWordle 4.1"));
+    layout->add(std::make_unique<Text>(2, 1, 18, "MrknWordle " WORDLE_VERSION));
     layout->add(std::make_unique<DateTime>(22, 1));
     auto router = std::make_unique<Router>(2, 3, 77, 21);
     auto* routerPtr = router.get();

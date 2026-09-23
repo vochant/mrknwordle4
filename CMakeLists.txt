@@ -104,7 +104,10 @@ add_library(libwordle STATIC
 )
 
 target_link_libraries(libwordle PUBLIC wordle_dictionary wordle_i18n wordle_sqlite Threads::Threads)
-target_compile_definitions(libwordle PRIVATE WORDLE_LOG_LEVEL=${WORDLE_LOG_LEVEL_VALUE})
+target_compile_definitions(libwordle PUBLIC
+    WORDLE_LOG_LEVEL=${WORDLE_LOG_LEVEL_VALUE}
+    WORDLE_VERSION="${PROJECT_VERSION}"
+)
 include(cmake/Terminal.cmake)
 include(cmake/Plugins.cmake)
 
@@ -121,7 +124,6 @@ endif()
 
 add_executable(wordle4 src/main.cpp)
 target_link_libraries(wordle4 PRIVATE libwordle)
-target_compile_definitions(wordle4 PRIVATE WORDLE_VERSION="${PROJECT_VERSION}")
 if(WIN32)
     enable_language(RC)
     target_sources(wordle4 PRIVATE resources.rc)

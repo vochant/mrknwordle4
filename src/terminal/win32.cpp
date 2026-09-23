@@ -449,6 +449,9 @@ namespace {
             info.bVisible = visible;
             SetConsoleCursorInfo(output, &info);
         }
+        void setTitle(const std::string& title) override {
+            SetConsoleTitleA(title.c_str());
+        }
     };
 } // namespace
 

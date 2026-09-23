@@ -243,6 +243,10 @@ namespace {
             output += visible ? "\x1b[?25h" : "\x1b[?25l";
             present();
         }
+        void setTitle(const std::string& title) override {
+            output += "\x1b]0;" + title + "\x07";
+            present();
+        }
     };
 } // namespace
 

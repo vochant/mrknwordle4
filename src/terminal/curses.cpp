@@ -23,9 +23,13 @@ namespace {
     constexpr int cursesCtrlLeft = KEY_MAX + 1;
     constexpr int cursesCtrlRight = KEY_MAX + 2;
 
+    char* cursesCapability(const char* name) {
+        char* value = tigetstr(const_cast<char*>(name));
+        return value && value != reinterpret_cast<char*>(-1) ? value : nullptr;
+    }
+
     void defineTerminfoKey(const char* capability, int key) {
-        char* seq = tigetstr(const_cast<char*>(capability));
-        if (seq && seq != reinterpret_cast<char*>(-1)) define_key(seq, key);
+        if (char* seq = cursesCapability(capability)) define_key(seq, key);
     }
 #endif
     class CursesTerminal final : public Terminal {
@@ -187,6 +191,8 @@ namespace {
             // 80x24, so request the application size before creating the screen.
             // Keep explicit PDC_LINES/PDC_COLS overrides untouched.
             if (!std::getenv("PDC_LINES") && !std::getenv("PDC_COLS")) resize_term(25, 80);
+#elif defined(NCURSES_VERSION)
+            use_extended_names(TRUE);
 #endif
             screen = newterm(term, stdout, stdin);
             if (!screen) throw std::runtime_error("Cannot initialize curses terminal (check TERM and tty)");
@@ -407,6 +413,21 @@ namespace {
             doupdate();
         }
         void cursor(bool visible) override { curs_set(visible ? 1 : 0); }
+        void setTitle(const std::string& title) override {
+#ifdef WORDLE_CURSES_PDCURSES
+            PDC_set_title(title.c_str());
+#elif defined(NCURSES_VERSION)
+            char* start = cursesCapability("TS");
+            char* finish = cursesCapability("fsl");
+            if (!start || !finish) return;
+            putp(start);
+            std::fwrite(title.data(), 1, title.size(), stdout);
+            putp(finish);
+            std::fflush(stdout);
+#else
+            (void) title;
+#endif
+        }
     };
 } // namespace
 
