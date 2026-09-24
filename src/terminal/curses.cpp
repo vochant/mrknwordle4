@@ -413,6 +413,11 @@ namespace {
             doupdate();
         }
         void cursor(bool visible) override { curs_set(visible ? 1 : 0); }
+        void setBackground(int value) override {
+            const int color = nearest_term_color(value);
+            if (nextPair >= COLOR_PAIRS || init_pair(nextPair, color, color) == ERR) return;
+            wbkgd(stdscr, COLOR_PAIR(nextPair++) | ' ');
+        }
         void setTitle(const std::string& title) override {
 #ifdef WORDLE_CURSES_PDCURSES
             PDC_set_title(title.c_str());

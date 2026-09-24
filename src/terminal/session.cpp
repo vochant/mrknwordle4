@@ -14,7 +14,9 @@ TermSession::TermSession() : handlesInterrupts(options->term.handleInterrupt) {
     try {
         logger.write(Logger::Debug, "INIT", "初始化终端后端: " + options->term.backend);
         term = create_term(options->term);
+        term->setBackground(options->colors.background.value);
         term->setTitle("MrknWordle " WORDLE_VERSION);
+        termScreen.setBackground(options->colors.background.value);
         auto dimensions = term->size();
         termScreen.resize(dimensions.first, dimensions.second);
         logger.write(

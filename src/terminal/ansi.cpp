@@ -243,6 +243,13 @@ namespace {
             output += visible ? "\x1b[?25h" : "\x1b[?25l";
             present();
         }
+        void setBackground(int value) override {
+            if (value < 0) value = 0;
+            output += "\x1b[0;" + color(7, false) + ";" + color(value, true) + "m\x1b[2J\x1b[H";
+            outputX = outputY = foreground = background = -1;
+            styles = 0xffff;
+            present();
+        }
         void setTitle(const std::string& title) override {
             output += "\x1b]0;" + title + "\x07";
             present();

@@ -48,6 +48,7 @@ public:
     virtual void draw(int x, int y, const TermCell& cell) = 0;
     virtual void present() = 0;
     virtual void cursor(bool visible) = 0;
+    virtual void setBackground(int) {}
     virtual void setTitle(const std::string&) {}
     virtual bool singleBmpCells() const { return false; }
     virtual TerminalGlyph prepareGlyph(const std::string& cluster) const;
@@ -56,12 +57,15 @@ public:
 
 class TermScreen {
     int columns = 0, rows = 0;
+    int background = 0;
     std::vector<TermCell> cells, prev;
     bool invalid = true;
     bool dirty = true;
+    TermCell blank() const { return {" ", 7, background, 1, 0}; }
     void eraseGlyph(int x, int y);
 
 public:
+    void setBackground(int color);
     void resize(int width, int height);
     void put(int x, int y, TermCell cell);
     void invalidate();

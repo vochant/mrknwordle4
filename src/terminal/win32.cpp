@@ -24,6 +24,7 @@ namespace {
         DWORD prevButtons = 0;
         bool mouseEnabled;
         int columns = 0, rows = 0;
+        int defaultBackground = 0;
         std::vector<CHAR_INFO> buffer;
         int left = 0, top = 0, right = -1, bottom = -1;
         bool enableVt = false;
@@ -369,7 +370,8 @@ namespace {
                 rows = dimensions.second;
                 CHAR_INFO empty {};
                 empty.Char.UnicodeChar = L' ';
-                empty.Attributes = 7;
+                const int color = palette(defaultBackground);
+                empty.Attributes = (WORD) (color | (color << 4));
                 buffer.assign(size_t(1) * columns * rows, empty);
             }
             if (x < 0 || y < 0 || x + cell.width > columns || y >= rows) return;
@@ -448,6 +450,26 @@ namespace {
             GetConsoleCursorInfo(output, &info);
             info.bVisible = visible;
             SetConsoleCursorInfo(output, &info);
+        }
+        void setBackground(int value) override {
+            defaultBackground = value < 0 ? 0 : value;
+            if (enableVt) {
+                vout += L"\x1b[0;37;" + vtColor(defaultBackground, true) + L"m\x1b[2J\x1b[H";
+                vx = vy = vforeground = vbackground = -1;
+                vstyles = 0xffff;
+                present();
+                return;
+            }
+            if (buffer.empty()) return;
+            const int color = palette(defaultBackground);
+            const WORD attributes = (WORD) (color | (color << 4));
+            for (auto& cell : buffer) {
+                cell.Char.UnicodeChar = L' ';
+                cell.Attributes = attributes;
+            }
+            left = top = 0;
+            right = columns - 1;
+            bottom = rows - 1;
         }
         void setTitle(const std::string& title) override {
             SetConsoleTitleA(title.c_str());

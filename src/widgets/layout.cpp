@@ -10,7 +10,11 @@ void single_frame(int x, int y, int w, int h, PaintBrush* pb) {
 }
 
 void Layout::render(PaintBrush* pb, bool redraw) {
-    if (redraw) fd(ax, ay, w, h, pb);
+    if (redraw) {
+        pb->color(options->colors.foreground, options->colors.background);
+        pb->fill(ax, ay, ax + w - 1, ay + h - 1);
+        fd(ax, ay, w, h, pb);
+    }
     bool sthHovered = false;
     for (const auto& item : items) {
         if (item->focusable() && item->isHover()) {

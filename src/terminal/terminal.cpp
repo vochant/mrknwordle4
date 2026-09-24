@@ -39,11 +39,19 @@ bool TermCell::operator==(const TermCell& other) const {
         styles == other.styles;
 }
 
+void TermScreen::setBackground(int color) {
+    background = color < 0 ? 0 : color;
+    cells.assign(size_t(1) * columns * rows, blank());
+    prev = cells;
+    invalid = true;
+    dirty = true;
+}
+
 void TermScreen::resize(int width, int height) {
     if (width == columns && height == rows) return;
     columns = std::max(0, width);
     rows = std::max(0, height);
-    cells.assign(size_t(1) * columns * rows, {});
+    cells.assign(size_t(1) * columns * rows, blank());
     prev = cells;
     invalid = true;
     dirty = true;
@@ -51,9 +59,9 @@ void TermScreen::resize(int width, int height) {
 
 void TermScreen::eraseGlyph(int x, int y) {
     auto ix = size_t(1) * y * columns + x;
-    if (cells[ix].width == 0 && x > 0) cells[ix - 1] = {};
-    else if (cells[ix].width == 2 && x + 1 < columns) cells[ix + 1] = {};
-    cells[ix] = {};
+    if (cells[ix].width == 0 && x > 0) cells[ix - 1] = blank();
+    else if (cells[ix].width == 2 && x + 1 < columns) cells[ix + 1] = blank();
+    cells[ix] = blank();
 }
 
 void TermScreen::put(int x, int y, TermCell cell) {
