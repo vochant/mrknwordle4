@@ -2,6 +2,8 @@
 
 Lua 后端默认编译。当前能力是自定义 **grader（评测器）**。创建游戏时独立选择 grader、词典与答案来源，不再注册额外的模式资源。
 
+`core.json` 还声明了一个仅供 core plugin 使用的 `native` runtime。它通过固定的 C++ 导出名连接内置 grader，不读取脚本文件，也不会出现在普通插件的允许 runtime 列表中。
+
 ## 场景与依赖
 
 Lua 用于直接编写、修改小型本地规则，不需要编译工具链；依赖 Lua 5.4/5.5，仅接受文本 `.lua`，不接受字节码。
@@ -24,6 +26,33 @@ Lua 用于直接编写、修改小型本地规则，不需要编译工具链；�
 
 将 `examples/plugins/lua` 复制到运行目录的 `plugins/` 内。示例只判断位置是否完全匹配，不是标准 Wordle 的黄色字母规则。
 默认配置加载 Unix dict、Lingua Latina 与 Hardcore，并允许 Lua runtime；移除 Lua 或设置 `runtimes: []` 可禁用脚本执行。
+
+## 宿主 API 与主动注册
+
+manifest 可声明脚本可读取的文件和主动注册权限：
+
+```json
+"files": {
+  "answers": {"path": "data/answers.txt", "limit": 1048576}
+},
+"permissions": {
+  "read": ["answers"],
+  "register": {
+    "graders": ["org.example.rule"],
+    "dictionaries": ["org.example.words"],
+    "words": ["org.example.words.answers"]
+  },
+  "log": true
+}
+```
+
+入口脚本可以使用受限的 `io.open(alias, mode)` 打开获授权的文件，使用 `io.lines(alias, mode)` 逐行读取，并使用 `io.type(file)` 检查句柄状态；也可以使用 `plugin.read_dict(alias, type)` 直接通过宿主的 DictReader 读取 `plain`、`json` 或 `nbt` 文件。`io.open` 和 `io.lines` 只接受 `files` 中声明且列入 `permissions.read` 的别名，Lua 的其他全局 IO 操作均不可用。
+
+声明 `permissions.log: true` 后，入口脚本可以调用 `plugin.log(level, message)` 写入宿主日志；`level` 为 `debug`、`info`、`warn` 或 `error`，日志模块固定为当前插件 ID，单条消息最多 4 KiB。
+
+入口脚本还可以在初始化期间调用 `plugin.register.grader(id, spec)`、`plugin.register.dictionary(id, spec)` 和 `plugin.register.words(id, spec)`。主动注册的资源会与 manifest 的被动资源一起验证，任何错误都会回滚当前插件；初始化结束后再次注册会被拒绝。入口可以返回 `nil`，不再强制返回导出表。
+
+`plugin.register.words` 的 `spec.file` 使用已授权的文件别名，`spec.type` 为 `plain`、`json` 或 `nbt`。主动 grader 的 `check`、可选 `compatible`、`start` 和 `finish` 都直接接受 Lua 函数。注册 ID 必须预先列在对应的 `permissions.register` 数组中。
 
 ## 清单扩展
 
@@ -66,10 +95,10 @@ Lua 用于直接编写、修改小型本地规则，不需要编译工具链；�
 ## 限制及失败行为
 
 - 单份及全部代码源合计最多 1 MiB，其他文件预算见 `PLUGINS.md`。
-- Lua 分配器上限 8 MiB，每次加载/调用约 100,000 VM 指令预算。
-- Lua 仅开放受限 base/table/string/math；无 io/os/package/debug/coroutine、动态 load、pcall/xpcall 或宿主 IO。移除了模式匹配、重复字符串及转储等容易放大 C 层执行成本的入口。
-- 预算不等于墙钟超时。Lua 的 C 标准库调用以及编译消耗不被这些 VM 指令/内存限制完整覆盖；后端仍在主线程执行小型、有限规则，不宣称能安全运行任意不可信代码。
-- 运行时异常、预算耗尽或非法返回值会使当前运行时停止后续调用；当前游戏显示错误并回到主菜单，不退出整个程序。
+- Lua 分配器上限 8 MiB；不设置 VM 指令数量预算。
+- Lua 仅开放受限 base/table/string/math，以及只含 checked `io.open`、`io.lines` 和 `io.type` 的 IO 模块；无 os/package/debug/coroutine、动态 load、pcall/xpcall 或其他宿主 IO。
+- 没有 VM 指令预算，因此插件代码必须是可信且有限的；后端仍在主线程执行，不宣称能安全运行任意不可信代码。
+- 运行时异常或非法返回值会使当前运行时停止后续调用；当前游戏显示错误并回到主菜单，不退出整个程序。
 - 插件实例由注册的函数共享持有，注册表销毁时释放；没有热卸载、动态库加载、文件/网络/进程权限或线程宿主 API。
 
 ## 多文件代码
@@ -82,4 +111,3 @@ Lua 可用 `runtime.modules` 将模块名映射到显式源码路径。入口示
 ## 上游参考
 
 - Lua 5.4 手册：https://www.lua.org/manual/5.4/manual.html
-

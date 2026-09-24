@@ -18,6 +18,55 @@ namespace {
         });
     }
 
+    std::shared_ptr<GraderType> parse_grader(const nlohmann::json& spec) {
+        auto grader = std::make_shared<GraderType>();
+        grader->name = safe_text(spec.at("name").get<std::string>());
+        if (grader->name.empty()) throw std::invalid_argument("Grader name cannot be empty");
+        grader->deterministic = spec.value("deterministic", false);
+        const auto& states = spec.at("states");
+        if (!states.is_object() || states.empty() || states.size() > 256) {
+            throw std::invalid_argument("Grader states must be a nonempty object with at most 256 states");
+        }
+        for (const auto& state : states.items()) {
+            size_t parsed = 0;
+            int id;
+            try {
+                id = std::stoi(state.key(), &parsed);
+            }
+            catch (...) {
+                throw std::invalid_argument("Invalid grader state ID: " + state.key());
+            }
+            if (parsed != state.key().size() || id < 0 || id > 255 || std::to_string(id) != state.key()) {
+                throw std::invalid_argument("Grader state ID must be a canonical integer from 0 to 255");
+            }
+            check_fields(state.value(), {"color", "mode", "overrides"});
+            auto mode = state.value().at("mode").get<std::string>();
+            if (mode != "mark" && mode != "spoiler") {
+                throw std::invalid_argument("Grader state mode must be mark or spoiler");
+            }
+            auto overrides = state.value().at("overrides").get<std::set<int>>();
+            if (std::any_of(overrides.begin(), overrides.end(), [](int other) {
+                return other < -1 || other > 255;
+            })) {
+                throw std::invalid_argument("Grader state override must be -1 or a state ID");
+            }
+            grader->ruleset.emplace(id, GraderType::GraderResult {
+                parse_color(state.value().at("color").get<std::string>()), mode == "spoiler",
+                std::move(overrides)
+            });
+        }
+        for (const auto&[id, state] : grader->ruleset) {
+            for (int other : state.overrides) {
+                if (other != -1 && !grader->ruleset.count(other)) {
+                    throw std::invalid_argument(
+                        "Grader state overrides an undeclared state: " + std::to_string(other)
+                    );
+                }
+            }
+        }
+        return grader;
+    }
+
 } // namespace
 
 std::string PluginInfo::summary() const {
@@ -38,13 +87,13 @@ void PluginManager::load(const PluginSource& source, const std::string& manifest
     logger.write(Logger::Debug, "LOAD", "加载插件: " + source.id);
     try {
         if (!valid_id(source.id)) throw std::invalid_argument("Invalid plugin id");
-        PluginFiles files(source.directory, topLevel);
-        auto mf = nlohmann::json::parse(files.read(manifestName));
+        auto files = std::make_shared<PluginFiles>(source.directory, topLevel);
+        auto mf = nlohmann::json::parse(files->read(manifestName));
         checkSchema(mf);
         check_fields(mf, {
             "schemaVersion", "id", "name", "version", "author",
             "homepage", "description", "license", "runtime",
-            "dictionaries", "words", "graders"
+            "dictionaries", "words", "graders", "files", "permissions"
         });
         if (mf.at("id").get<std::string>() != source.id) {
             throw std::invalid_argument("Manifest id does not match configured id");
@@ -59,8 +108,70 @@ void PluginManager::load(const PluginSource& source, const std::string& manifest
         info.description = safe_text(mf.value("description", std::string()));
         info.license = mf.value("license", "");
         auto cand = res;
+        LuaRuntimeOptions luaOptions;
+        luaOptions.pluginId = source.id;
+        std::map<std::string, std::pair<std::string, size_t>> fileSpecs;
+        if (mf.contains("files")) {
+            const auto& filesSpec = mf.at("files");
+            if (!filesSpec.is_object()) throw std::invalid_argument("files must be an object");
+            for (const auto& file : filesSpec.items()) {
+                if (!valid_id(file.key())) throw std::invalid_argument("Invalid file declaration: " + file.key());
+                check_fields(file.value(), {"path", "limit"});
+                auto path = file.value().at("path").get<std::string>();
+                auto limit = file.value().value("limit", size_t(4 * 1024 * 1024));
+                if (!limit || limit > 4 * 1024 * 1024) {
+                    throw std::invalid_argument("File limit must be between 1 and 4 MiB");
+                }
+                fileSpecs.emplace(file.key(), std::make_pair(std::move(path), limit));
+            }
+        }
+        if (mf.contains("permissions")) {
+            const auto& permissions = mf.at("permissions");
+            check_fields(permissions, {"read", "register", "log"});
+            if (permissions.contains("log")) {
+                luaOptions.allowLog = permissions.at("log").get<bool>();
+            }
+            if (permissions.contains("read")) {
+                const auto& read = permissions.at("read");
+                if (!read.is_array()) throw std::invalid_argument("permissions.read must be an array");
+                for (const auto& value : read) {
+                    auto id = value.get<std::string>();
+                    if (!fileSpecs.count(id)) throw std::invalid_argument("Unknown readable file: " + id);
+                    luaOptions.readableFiles.insert(std::move(id));
+                }
+            }
+            if (permissions.contains("register")) {
+                const auto& registration = permissions.at("register");
+                check_fields(registration, {"graders", "dictionaries", "words"});
+                auto readIds = [&](const char* field, std::set<std::string>& target) {
+                    if (!registration.contains(field)) return;
+                    const auto& values = registration.at(field);
+                    if (!values.is_array()) {
+                        throw std::invalid_argument(std::string("permissions.register.") + field + " must be an array");
+                    }
+                    for (const auto& value : values) {
+                        auto id = value.get<std::string>();
+                        if (!valid_id(id) || id.find(source.id + ".") != 0) {
+                            throw std::invalid_argument(std::string("Invalid registration id: ") + id);
+                        }
+                        if (!target.insert(id).second) {
+                            throw std::invalid_argument(std::string("Duplicate registration id: ") + id);
+                        }
+                    }
+                };
+                readIds("graders", luaOptions.registerGraders);
+                readIds("dictionaries", luaOptions.registerDictionaries);
+                readIds("words", luaOptions.registerWords);
+            }
+        }
+        luaOptions.readFile = [files, fileSpecs](const std::string& id) {
+            auto found = fileSpecs.find(id);
+            if (found == fileSpecs.end()) throw std::invalid_argument("Unknown readable file: " + id);
+            return files->read(found->second.first, found->second.second);
+        };
         std::map<std::string, std::shared_ptr<Runtime>> runtimes;
         std::map<std::string, std::set<std::string>> runtimeExports;
+        std::vector<std::pair<std::shared_ptr<Runtime>, ActivePluginResources>> activeResources;
         if (mf.contains("runtime")) {
             const auto& specs = mf.at("runtime");
             if (!specs.is_array() || specs.empty()) {
@@ -73,7 +184,10 @@ void PluginManager::load(const PluginSource& source, const std::string& manifest
                 if (!valid_id(id) || runtimes.count(id)) {
                     throw std::invalid_argument("Invalid or duplicate runtime id");
                 }
-                if (!settings.plugins.runtimes.count(backend)) {
+                if (backend == "native" && source.id != "core") {
+                    throw std::invalid_argument("Plugin backend is not allowed: " + backend);
+                }
+                if (backend != "native" && !settings.plugins.runtimes.count(backend)) {
                     throw std::invalid_argument("Plugin backend is not allowed: " + backend);
                 }
                 const auto& declared = spec.at("exports");
@@ -86,10 +200,12 @@ void PluginManager::load(const PluginSource& source, const std::string& manifest
                     }
                 }
                 auto modules = spec.value("modules", nlohmann::json::object());
-                runtimes.emplace(id, create_runtime(
-                    backend, files, spec.at("entry").get<std::string>(),
-                    modules.get<std::map<std::string, std::string>>()
-                ));
+                auto runtime = create_runtime(
+                    backend, *files, spec.at("entry").get<std::string>(),
+                    modules.get<std::map<std::string, std::string>>(), luaOptions
+                );
+                activeResources.emplace_back(runtime, runtime->takeRegistrations());
+                runtimes.emplace(id, std::move(runtime));
                 runtimeExports.emplace(id, std::move(names));
             }
         }
@@ -105,9 +221,6 @@ void PluginManager::load(const PluginSource& source, const std::string& manifest
                     throw std::invalid_argument("Invalid or duplicate grader id: " + entry.key());
                 }
                 check_fields(entry.value(), {"name", "runtime", "exports", "deterministic", "states"});
-                auto displayName = safe_text(entry.value().at("name").get<std::string>());
-                if (displayName.empty()) throw std::invalid_argument("Grader name cannot be empty");
-                auto backend = entry.value().at("runtime").get<std::string>();
                 auto runtimeId = entry.value().at("runtime").get<std::string>();
                 if (!runtimes.count(runtimeId)) throw std::invalid_argument("Unknown grader runtime");
                 auto runtime = runtimes.at(runtimeId);
@@ -134,56 +247,13 @@ void PluginManager::load(const PluginSource& source, const std::string& manifest
                 auto compatibleName = exportName("compatible", false);
                 auto startName = exportName("start", false);
                 auto finishName = exportName("finish", false);
-                runtime->validateGrader(checkName);
+                const auto checkFunc = runtime->bindGrader(checkName);
                 if (!compatibleName.empty()) runtime->validateCompatible(compatibleName);
                 if (!startName.empty()) runtime->validateLifecycle(startName);
                 if (!finishName.empty()) runtime->validateLifecycle(finishName);
-                auto grader = std::make_shared<GraderType>();
-                grader->name = displayName;
-                grader->deterministic = entry.value().value("deterministic", false);
-                const auto& states = entry.value().at("states");
-                if (!states.is_object() || states.empty() || states.size() > 256) {
-                    throw std::invalid_argument("Grader states must be a nonempty object with at most 256 states");
-                }
-                for (const auto& state : states.items()) {
-                    size_t parsed = 0;
-                    int id;
-                    try {
-                        id = std::stoi(state.key(), &parsed);
-                    }
-                    catch (...) {
-                        throw std::invalid_argument("Invalid grader state ID: " + state.key());
-                    }
-                    if (parsed != state.key().size() || id < 0 || id > 255 || std::to_string(id) != state.key()) {
-                        throw std::invalid_argument("Grader state ID must be a canonical integer from 0 to 255");
-                    }
-                    check_fields(state.value(), {"color", "mode", "overrides"});
-                    auto mode = state.value().at("mode").get<std::string>();
-                    if (mode != "mark" && mode != "spoiler") {
-                        throw std::invalid_argument("Grader state mode must be mark or spoiler");
-                    }
-                    auto overrides = state.value().at("overrides").get<std::set<int>>();
-                    if (std::any_of(overrides.begin(), overrides.end(), [](int other) {
-                        return other < -1 || other > 255;
-                    })) {
-                        throw std::invalid_argument("Grader state override must be -1 or a state ID");
-                    }
-                    grader->ruleset.emplace(id, GraderType::GraderResult {
-                        parse_color(state.value().at("color").get<std::string>()), mode == "spoiler",
-                        std::move(overrides)
-                    });
-                }
-                for (const auto&[id, state] : grader->ruleset) {
-                    for (int other : state.overrides) {
-                        if (other != -1 && !grader->ruleset.count(other)) {
-                            throw std::invalid_argument(
-                                "Grader state overrides an undeclared state: " + std::to_string(other)
-                            );
-                        }
-                    }
-                }
-                grader->func = [runtime, checkName](const std::string& guess, const std::string& answer) {
-                    return runtime->grade(checkName, guess, answer);
+                auto grader = parse_grader(entry.value());
+                grader->func = [runtime, checkFunc](const std::string& guess, const std::string& answer) {
+                    return checkFunc(guess, answer);
                 };
                 grader->start = startName.empty() ?
                     GraderLifecycleFunc {} :
@@ -201,6 +271,24 @@ void PluginManager::load(const PluginSource& source, const std::string& manifest
                 cand.graders.emplace(entry.key(), std::move(grader));
             }
         }
+        for (auto& [runtime, resources] : activeResources) {
+            for (auto& entry : resources.graders) {
+                if (!valid_id(entry.id) || entry.id.find(source.id + ".") != 0 || cand.graders.count(entry.id)) {
+                    throw std::invalid_argument("Invalid or duplicate grader id: " + entry.id);
+                }
+                auto grader = parse_grader(entry.definition);
+                grader->func = [runtime, check = std::move(entry.check)](
+                    const std::string& guess, const std::string& answer
+                ) {
+                    return check(guess, answer);
+                };
+                grader->start = std::move(entry.start);
+                grader->finish = std::move(entry.finish);
+                grader->hasCompatible = bool(entry.compatible);
+                grader->compatible = std::move(entry.compatible);
+                cand.graders.emplace(entry.id, std::move(grader));
+            }
+        }
         if (mf.contains("dictionaries")) {
             const auto& dicts = mf.at("dictionaries");
             if (!dicts.is_object()) throw std::invalid_argument("dictionaries must be an object");
@@ -212,6 +300,26 @@ void PluginManager::load(const PluginSource& source, const std::string& manifest
                 auto dict = e.value();
                 dict["name"] = safe_text(dict.at("name").get<std::string>());
                 cand.dicts.emplace(id, parse_dict(dict));
+            }
+        }
+        for (auto& [runtime, resources] : activeResources) {
+            for (auto& entry : resources.dictionaries) {
+                if (!valid_id(entry.id) || entry.id.find(source.id + ".") != 0 || cand.dicts.count(entry.id)) {
+                    throw std::invalid_argument("Invalid or duplicate dictionary id: " + entry.id);
+                }
+                cand.dicts.emplace(entry.id, std::move(entry.dictionary));
+            }
+        }
+        for (auto& [runtime, resources] : activeResources) {
+            for (auto& entry : resources.words) {
+                auto rule = std::move(entry.rule);
+                if (rule.filter != "*" && (!valid_id(rule.filter) || !cand.dicts.count(rule.filter))) {
+                    throw std::invalid_argument("Unknown word filter: " + rule.filter);
+                }
+                if (rule.target != "accept" && rule.target != "answer") {
+                    throw std::invalid_argument("Word target must be accept or answer");
+                }
+                cand.words.push_back(std::move(rule));
             }
         }
         if (mf.contains("words")) {
@@ -229,7 +337,7 @@ void PluginManager::load(const PluginSource& source, const std::string& manifest
                 if (rule.target != "accept" && rule.target != "answer") {
                     throw std::invalid_argument("Word target must be accept or answer");
                 }
-                const auto& contents = files.read(entry.at("file").get<std::string>());
+                const auto& contents = files->read(entry.at("file").get<std::string>());
                 const auto loaded = read_dict(contents, type);
                 rule.words.insert(loaded.begin(), loaded.end());
                 cand.words.push_back(std::move(rule));

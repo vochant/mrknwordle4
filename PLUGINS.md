@@ -19,9 +19,11 @@
 
 所有路径相对插件根目录。拒绝绝对路径、`..`、NUL、盘符、反斜线和逃出插件目录的符号链接。无目录扫描、通配符导入或隐式依赖。
 
+Lua 插件可在 manifest 的 `files` 中声明文件别名和读取上限，再在 `permissions.read` 中授予脚本读取权限。`permissions.register` 按 ID 授权 Lua 主动注册 grader、dictionary 和 words；`permissions.log` 授权脚本写入宿主日志。内存、文件数量、单文件和总文件大小限制仍然有效。
+
 ## 核心插件
 
-`core.json` 是固定先加载的标准插件，元数据为 ID `core`、author `Mirekintoc`、license `MIT`。它注册 `core.english` 并逐文件加载运行目录中的 `accept.dict` 与 `answer.dict`。核心 grader ID 为 `core.wordle`、`core.letter_presence`、`core.match_count`、`core.hardle`。`core.hardle` 按 Wordle 规则统计绿色和黄色数量，并将绿色状态、黄色状态从左到右集中显示，不暴露具体位置。
+`core.json` 是固定先加载的标准插件，元数据为 ID `core`、author `Mirekintoc`、license `MIT`。它注册 `core.english` 并逐文件加载运行目录中的 `accept.dict` 与 `answer.dict`，同时声明四个核心 grader。核心 grader ID 为 `core.wordle`、`core.letter_presence`、`core.match_count`、`core.hardle`；它们的算法由程序内置的 C++ native runtime 提供，不属于普通插件可用的 runtime。`core.hardle` 按 Wordle 规则统计绿色和黄色数量，并将绿色状态、黄色状态从左到右集中显示，不暴露具体位置。
 
 ## 注册词典
 

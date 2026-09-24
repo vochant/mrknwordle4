@@ -6,6 +6,58 @@
   "author": "Mirekintoc",
   "license": "MIT",
   "description": "Mirekintoc Wordle Core",
+  "runtime": [
+    {
+      "id": "native",
+      "backend": "native",
+      "entry": "core",
+      "exports": ["wordle", "letter_presence", "match_count", "hardle"]
+    }
+  ],
+  "graders": {
+    "core.wordle": {
+      "name": "Wordle",
+      "runtime": "native",
+      "exports": {"check": "wordle"},
+      "deterministic": true,
+      "states": {
+        "0": {"color": "term:RGBL", "mode": "spoiler", "overrides": [-1]},
+        "1": {"color": "term:RGL", "mode": "mark", "overrides": [-1, 0]},
+        "2": {"color": "term:GL", "mode": "mark", "overrides": [-1, 0, 1]}
+      }
+    },
+    "core.letter_presence": {
+      "name": "Letter presence",
+      "runtime": "native",
+      "exports": {"check": "letter_presence"},
+      "deterministic": true,
+      "states": {
+        "0": {"color": "term:RGBL", "mode": "spoiler", "overrides": [-1]},
+        "1": {"color": "term:GBL", "mode": "mark", "overrides": [-1, 0]}
+      }
+    },
+    "core.match_count": {
+      "name": "Match count",
+      "runtime": "native",
+      "exports": {"check": "match_count"},
+      "deterministic": true,
+      "states": {
+        "0": {"color": "term:RGBL", "mode": "mark", "overrides": []},
+        "1": {"color": "term:RB", "mode": "mark", "overrides": []}
+      }
+    },
+    "core.hardle": {
+      "name": "Hardle",
+      "runtime": "native",
+      "exports": {"check": "hardle"},
+      "deterministic": true,
+      "states": {
+        "0": {"color": "term:RGBL", "mode": "mark", "overrides": []},
+        "1": {"color": "term:RGL", "mode": "mark", "overrides": []},
+        "2": {"color": "term:GL", "mode": "mark", "overrides": []}
+      }
+    }
+  },
   "dictionaries": {
     "core.english": {
       "name": "English",

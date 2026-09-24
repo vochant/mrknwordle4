@@ -5,7 +5,7 @@
   "version": "1.0.0",
   "author": "Mirekintoc",
   "license": "MIT",
-  "description": "Add some five-letter Unix/C words.",
+  "description": "Adds some five-letter Unix/C words.",
   "dictionaries": {
     "core.ext.unixdict.unix": {
       "name": "Unix",
