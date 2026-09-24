@@ -79,6 +79,11 @@ void TermScreen::put(int x, int y, TermCell cell) {
     cells[size_t(1) * y * columns + x] = std::move(cell);
 }
 
+TermCell TermScreen::cell(int x, int y) const {
+    if (x < 0 || x >= columns || y < 0 || y >= rows) return blank();
+    return cells[size_t(1) * y * columns + x];
+}
+
 int TermScreen::prevColumn(int x, int y) const {
     if (x <= 0) return 0;
     int column = x - 1;
@@ -114,23 +119,15 @@ std::unique_ptr<Terminal> create_term(const TermOptions& configured) {
     const char* overrideBackend = std::getenv("WORDLE_BACKEND");
     std::string backend = overrideBackend ? overrideBackend : configured.backend;
     if (backend == "auto") {
-#if defined(WORDLE_HAS_ANSI)
-        if (ansi_term_available()) {
 #ifdef WORDLE_HAS_CURSES
-            backend = "curses";
-#else
-            backend = "ansi";
+        try { return create_curses_term(configured); } catch (const std::exception&) {}
 #endif
-        }
+#if defined(WORDLE_HAS_ANSI)
+        try { return create_ansi_term(configured.mouse); } catch (const std::exception&) {}
 #endif
 #if defined(WORDLE_HAS_WIN32)
-        if (backend == "auto") backend = "win32";
-#endif
-#if defined(WORDLE_HAS_CURSES)
-        if (backend == "auto") backend = "curses";
-#endif
-#if defined(WORDLE_HAS_ANSI)
-        if (backend == "auto") backend = "ansi";
+        try { return create_win32_vt_term(configured.mouse); } catch (const std::exception&) {}
+        return create_win32_term(configured.mouse);
 #endif
     }
 #ifdef WORDLE_HAS_CURSES

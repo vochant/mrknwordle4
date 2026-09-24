@@ -159,7 +159,7 @@ namespace {
             }
             return res;
         }
-        int measuredWidth(const std::string& text) const {
+        int measureGlyphWidth(const std::string& text) const override {
             if (!widthProbe) return 0;
             werase(widthProbe);
             const auto value = wide(text);
@@ -171,14 +171,6 @@ namespace {
 
     public:
         bool singleBmpCells() const override { return sizeof(wchar_t) == 2; }
-        TerminalGlyph prepareGlyph(const std::string& cluster) const override {
-            auto glyph = Terminal::prepareGlyph(cluster);
-            if (glyph.replaced) return glyph;
-            int width = measuredWidth(glyph.text);
-            if (width) glyph.width = width;
-            else return {"?", 1, true};
-            return glyph;
-        }
         explicit CursesTerminal(const TermOptions& options) : options(options) {
 #if !defined(_WIN32) && !defined(WORDLE_CURSES_PDCURSES)
             if (!isatty(STDIN_FILENO) || !isatty(STDOUT_FILENO)) {
@@ -219,8 +211,6 @@ namespace {
                 mouseinterval(0);
             }
             widthProbe = newpad(1, 8);
-            int ambiguousWidth = measuredWidth("│");
-            setAmb(ambiguousWidth);
 #ifdef NCURSES_VERSION
             set_escdelay(30);
             defineTerminfoKey("kLFT5", cursesCtrlLeft);

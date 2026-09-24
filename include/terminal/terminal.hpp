@@ -3,6 +3,7 @@
 #include "color.hpp"
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -39,7 +40,12 @@ std::string encode_utf8(char32_t point);
 TerminalGlyph prepare_glyph(const std::string& cluster, int ambiguousWidth = 1, bool singleBmp = false);
 
 class Terminal {
-    int amb = 0;
+    mutable std::unordered_map<std::string, int> glyphWidths;
+
+protected:
+    virtual int measureGlyphWidth(const std::string& glyph) const {
+        return prepare_glyph(glyph, 1, singleBmpCells()).width;
+    }
 
 public:
     virtual ~Terminal() = default;
@@ -51,8 +57,7 @@ public:
     virtual void setBackground(int) {}
     virtual void setTitle(const std::string&) {}
     virtual bool singleBmpCells() const { return false; }
-    virtual TerminalGlyph prepareGlyph(const std::string& cluster) const;
-    void setAmb(int width);
+    TerminalGlyph prepareGlyph(const std::string& cluster) const;
 };
 
 class TermScreen {
@@ -68,6 +73,7 @@ public:
     void setBackground(int color);
     void resize(int width, int height);
     void put(int x, int y, TermCell cell);
+    TermCell cell(int x, int y) const;
     void invalidate();
     void present(Terminal& terminal);
     int prevColumn(int x, int y) const;

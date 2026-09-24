@@ -31,10 +31,6 @@ void Menu::onClick(int, int iy) {
 }
 
 bool Menu::onInput(int ch) {
-    if (prev_focus != -1 && ch == '\r') {
-        entries[prev_focus].second();
-        return true;
-    }
     if (keymap.count(ch)) {
         entries[keymap[ch]].second();
         return true;

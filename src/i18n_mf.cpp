@@ -44,7 +44,7 @@ namespace minpoe {
         symbols.setShortMonths(shortMonths, 12);
         symbols.setWeekdays(weekdays, 8);
         symbols.setShortWeekdays(shortWeekdays, 8);
-        const auto pattern = detailed ? "EEEE d MMMM, y H:mm:ss" : "d/M/yy H:mm:ss";
+        const auto pattern = detailed ? "EEEE d MMMM, y 'ne' H:mm:ss" : "d/M/yy, H:mm:ss";
         auto result = std::make_unique<icu::SimpleDateFormat>(unicode(pattern), symbols, status);
         icu::GregorianCalendar calendar(icu::Locale::getRoot(), status);
         result->setCalendar(calendar);

@@ -78,9 +78,14 @@ TerminalGlyph prepare_glyph(const std::string& cluster, int amb, bool singleBmp)
 }
 
 TerminalGlyph Terminal::prepareGlyph(const std::string& cluster) const {
-    return ::prepare_glyph(cluster, amb, singleBmpCells());
-}
+    auto glyph = ::prepare_glyph(cluster, 1, singleBmpCells());
+    if (glyph.replaced) return glyph;
 
-void Terminal::setAmb(int width) {
-    amb = width == 1 || width == 2 ? width : 0;
+    auto found = glyphWidths.find(glyph.text);
+    const int width = found == glyphWidths.end() ?
+        glyphWidths.emplace(glyph.text, measureGlyphWidth(glyph.text)).first->second :
+        found->second;
+    if (width != 1 && width != 2) return {"?", 1, true};
+    glyph.width = width;
+    return glyph;
 }

@@ -105,17 +105,27 @@ namespace {
             }
             return key ? TermEvent {TermEvent::Type::Key, key} : TermEvent {};
         }
-        int probeAmbiguousWidth() {
+        int measureGlyphWidth(const std::string& text) const override {
+            auto* self = const_cast<Win32Terminal*>(this);
             const COORD origin {0, 0};
-            if (!SetConsoleCursorPosition(output, origin)) return 0;
-            const wchar_t probe[] = L"│";
+            if (!SetConsoleCursorPosition(self->output, origin)) return 0;
+            termScreen.invalidate();
+            self->vx = self->vy = -1;
+            self->left = self->top = 0;
+            self->right = self->bottom = -1;
+            int length = MultiByteToWideChar(CP_UTF8, 0, text.data(), (int) text.size(), nullptr, 0);
+            if (length <= 0) return 0;
+            std::wstring probe(length, L' ');
+            if (MultiByteToWideChar(CP_UTF8, 0, text.data(), (int) text.size(), probe.data(), length) != length) return 0;
             DWORD written = 0;
-            if (!WriteConsoleW(output, probe, 1, &written, nullptr) || written != 1) return 0;
+            if (!WriteConsoleW(self->output, probe.data(), (DWORD) probe.size(), &written, nullptr) || written != probe.size()) return 0;
             CONSOLE_SCREEN_BUFFER_INFO info {};
-            if (!GetConsoleScreenBufferInfo(output, &info)) return 0;
+            if (!GetConsoleScreenBufferInfo(self->output, &info)) return 0;
             int width = info.dwCursorPosition.Y == origin.Y ? info.dwCursorPosition.X - origin.X : 0;
-            FillConsoleOutputCharacterW(output, L' ', 2, origin, &written);
-            SetConsoleCursorPosition(output, origin);
+            FillConsoleOutputCharacterW(self->output, L' ', 2, origin, &written);
+            SetConsoleCursorPosition(self->output, origin);
+            self->left = self->top = 0;
+            self->right = self->bottom = -1;
             return width == 1 || width == 2 ? width : 0;
         }
         void enqueueKey(const KEY_EVENT_RECORD& event) {
@@ -274,8 +284,6 @@ namespace {
                 );
             }
             cursor(false);
-            int ambiguousWidth = probeAmbiguousWidth();
-            setAmb(ambiguousWidth);
         }
         ~Win32Terminal() override {
             if (vmouse) {

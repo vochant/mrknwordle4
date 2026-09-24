@@ -22,6 +22,7 @@ namespace {
         std::string output, input;
         std::pair<int, int> dims;
         int outputX = -1, outputY = -1, foreground = -1, background = -1;
+        int probeBackground = 0;
         uint16_t styles = 0xffff;
         std::chrono::steady_clock::time_point escapeStarted {};
 
@@ -95,25 +96,46 @@ namespace {
             return key ? TermEvent {TermEvent::Type::Key, key} : TermEvent {};
         }
 
-        int probeAmbiguousWidth() {
-            output = "\x1b[1;1H│\x1b[6n";
-            present();
+        int measureGlyphWidth(const std::string& text) const override {
+            auto* self = const_cast<AnsiTerminal*>(this);
+            const int probeRow = std::max(1, self->dims.second);
+            const int probeColumn = std::max(1, self->dims.first - 2);
+            const int x = probeColumn - 1;
+            const auto restoreLeft = termScreen.cell(x - 1, probeRow - 1);
+            const auto restoreMiddle = termScreen.cell(x, probeRow - 1);
+            const auto restoreRight = termScreen.cell(x + 1, probeRow - 1);
+            auto restore = [&]() {
+                if (x > 0 && restoreLeft.width) self->draw(x - 1, probeRow - 1, restoreLeft);
+                if (x >= 0 && x < self->dims.first && restoreMiddle.width) self->draw(x, probeRow - 1, restoreMiddle);
+                if (x + 1 < self->dims.first && restoreRight.width) self->draw(x + 1, probeRow - 1, restoreRight);
+                self->present();
+            };
+            self->output = "\x1b[" + std::to_string(probeRow) + ";" + std::to_string(probeColumn) +
+                "H\x1b[0;" + color(self->probeBackground, false) + ";" + color(self->probeBackground, true) +
+                "m" + text + "\x1b[6n";
+            self->present();
+            self->outputX = self->outputY = self->foreground = self->background = -1;
+            self->styles = 0xffff;
             const auto deadline = steady_clock::now() + milliseconds(150);
             while (steady_clock::now() < deadline) {
                 for (
-                    size_t start = input.find("\x1b[");
+                    size_t start = self->input.find("\x1b[");
                     start != std::string::npos;
-                    start = input.find("\x1b[", start + 1)
+                    start = self->input.find("\x1b[", start + 1)
                 ) {
                     int row = 0, column = 0, length = 0;
                     if (std::sscanf(
-                        input.c_str() + start,
+                        self->input.c_str() + start,
                         "\x1b[%d;%dR%n",
                         &row, &column, &length
                     ) == 2 && length > 0) {
-                        input.erase(start, length);
-                        if (!input.empty()) escapeStarted = steady_clock::now();
-                        return row == 1 && (column == 2 || column == 3) ? column - 1 : 0;
+                        self->input.erase(start, length);
+                        if (!self->input.empty()) self->escapeStarted = steady_clock::now();
+                        self->outputX = self->outputY = -1;
+                        int width = row == probeRow && (column == probeColumn + 1 || column == probeColumn + 2) ?
+                            column - probeColumn : 0;
+                        restore();
+                        return width;
                     }
                 }
                 auto rem = duration_cast<milliseconds>(deadline - steady_clock::now()).count();
@@ -123,8 +145,10 @@ namespace {
                 char buf[64];
                 ssize_t cnt = ::read(STDIN_FILENO, buf, sizeof(buf));
                 if (cnt <= 0) break;
-                input.append(buf, cnt);
+                self->input.append(buf, cnt);
             }
+            self->outputX = self->outputY = -1;
+            restore();
             return 0;
         }
 
@@ -149,8 +173,6 @@ namespace {
             output = "\x1b[?1049h\x1b[?25l\x1b[?7l\x1b[2J";
             if (mouseEnabled) output += "\x1b[?1003h\x1b[?1006h";
             present();
-            int ambiguousWidth = probeAmbiguousWidth();
-            setAmb(ambiguousWidth);
             output = "\x1b[2J\x1b[H";
             present();
         }
@@ -200,8 +222,9 @@ namespace {
             return {};
         }
         void draw(int x, int y, const TermCell& cell) override {
-            if (x != outputX || y != outputY)
+            if (x != outputX || y != outputY) {
                 output += "\x1b[" + std::to_string(y + 1) + ";" + std::to_string(x + 1) + "H";
+            }
             if (foreground != cell.foreground || background != cell.background || styles != cell.styles) {
                 output += "\x1b[0;" + color(cell.foreground, false) + ";" + color(cell.background, true);
                 for (auto[flag, code] : {
@@ -245,6 +268,7 @@ namespace {
         }
         void setBackground(int value) override {
             if (value < 0) value = 0;
+            probeBackground = value;
             output += "\x1b[0;" + color(7, false) + ";" + color(value, true) + "m\x1b[2J\x1b[H";
             outputX = outputY = foreground = background = -1;
             styles = 0xffff;
